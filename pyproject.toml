@@ -21,3 +21,12 @@ dependencies = [
     "uvicorn[standard]>=0.45.0",
     "qrcode[pil]>=8.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
