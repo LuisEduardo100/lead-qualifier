@@ -18,8 +18,9 @@ Critérios:
 - WARM: demonstra interesse mas com informações vagas — precisa de qualificação ativa
 - COLD: fora do nicho da empresa, sem interesse real mesmo após tentativas, ou apenas curiosidade superficial
 
-Dados a coletar progressivamente (pergunte 1 por vez quando warm):
-nome, email, cidade, orçamento estimado, tipo de projeto (residencial/comercial/industrial), produto de interesse
+Dados a coletar progressivamente (pergunte 1 por vez):
+- Quando WARM: nome, cidade, produto de interesse, orçamento estimado, tipo de projeto (residencial/comercial/industrial)
+- Quando HOT apenas: email — use o contexto de fidelização: "para te incluir em nossas ofertas exclusivas e lançamentos". NUNCA peça email se o lead ainda não for hot.
 
 Retorne APENAS o JSON, sem texto adicional."""
 

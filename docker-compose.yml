@@ -18,7 +18,7 @@ services:
       - redis_data:/data
 
   evolution:
-    image: atendai/evolution-api:latest
+    image: evolution-api-local:2.3.7
     container_name: evolution
     restart: unless-stopped
     ports:

@@ -59,11 +59,38 @@ async def get_connection_state(instance_name: str) -> str:
         return data.get("instance", {}).get("state", "unknown")
 
 
+async def resolve_lid_jid(instance_name: str, push_name: str) -> str | None:
+    import logging
+    logger = logging.getLogger(__name__)
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{BASE}/contact/findContacts/{instance_name}",
+            headers=HEADERS,
+            params={"query": push_name},
+        )
+        if r.status_code != 200:
+            logger.warning(f"findContacts {r.status_code}: {r.text}")
+            return None
+        contacts = r.json()
+        logger.info(f"findContacts result: {contacts}")
+        if isinstance(contacts, list) and contacts:
+            return contacts[0].get("id")
+        return None
+
+
 async def send_text(instance_name: str, phone: str, text: str) -> dict:
-    number = phone.replace("+", "").replace(" ", "").replace("-", "")
+    import logging
+    logger = logging.getLogger(__name__)
+    if "@" in phone:
+        number = phone
+    else:
+        number = phone.replace("+", "").replace(" ", "").replace("-", "")
+    logger.info(f"send_text → instance={instance_name} number={number}")
     async with httpx.AsyncClient() as client:
         r = await client.post(f"{BASE}/message/sendText/{instance_name}", headers=HEADERS,
                               json={"number": number, "text": text})
+        if not r.is_success:
+            logger.error(f"Evolution API {r.status_code}: {r.text}")
         r.raise_for_status()
         return r.json()
 

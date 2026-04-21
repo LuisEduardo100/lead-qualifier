@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy import select
-from backend.database import init_db, migrate_db, SessionLocal
+from sqlalchemy import text
+from backend.database import init_db, migrate_db, SessionLocal, engine
 from backend.models import AdminUser
 from backend.auth import hash_password
 from backend.config import get_settings
@@ -20,6 +21,11 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     await init_db()
     await migrate_db()
+    async with engine.begin() as conn:
+        try:
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN agent_paused INTEGER DEFAULT 0"))
+        except Exception:
+            pass
     async with SessionLocal() as db:
         existing = (await db.execute(
             select(AdminUser).where(AdminUser.username == settings.admin_username)

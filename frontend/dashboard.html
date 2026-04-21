@@ -64,7 +64,9 @@ if (!localStorage.getItem('token')) location.href = '/';
 let allLeads = [];
 
 function leadCard(l) {
-  return `<div onclick="location.href='/lead.html?id=${l.id}'" class="bg-white rounded-xl border border-gray-100 p-4 cursor-pointer hover:shadow-md transition">
+  const hotStyle = l.agent_paused ? 'border-amber-300 bg-amber-50 border-l-4' : l.status === 'hot' ? 'border-red-200 bg-red-50' : 'border-gray-100 bg-white';
+  const pausedBadge = l.agent_paused ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">⏸ Aguardando SDR</span>' : '';
+  return `<div onclick="location.href='/lead.html?id=${l.id}'" class="rounded-xl border ${hotStyle} p-4 cursor-pointer hover:shadow-md transition">
     <div class="flex items-start justify-between gap-2">
       <div>
         <p class="font-medium text-gray-900 text-sm">${l.name || l.phone}</p>
@@ -75,6 +77,7 @@ function leadCard(l) {
     ${l.interest ? `<p class="text-xs text-gray-600 mt-2 line-clamp-2">${l.interest}</p>` : ''}
     <div class="flex items-center gap-3 mt-3 text-xs text-gray-400">
       ${l.channel ? `<span>${l.channel}</span>` : ''}
+      ${pausedBadge}
       <span class="ml-auto">${timeAgo(l.last_message_at)}</span>
     </div>
   </div>`;

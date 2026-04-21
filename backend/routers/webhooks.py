@@ -51,7 +51,20 @@ async def receive_webhook(instance_name: str, request: Request, db: AsyncSession
         return {"ok": True}
 
     remote_jid = key.get("remoteJid", "")
-    phone = remote_jid.replace("@s.whatsapp.net", "").replace("@g.us", "")
+
+    if remote_jid.endswith("@g.us"):
+        return {"ok": True}
+
+    push_name = data.get("pushName")
+
+    # v2.3.7+ inclui remoteJidAlt com o JID real quando o contato usa @lid
+    remote_jid_alt = key.get("remoteJidAlt", "")
+    if remote_jid.endswith("@lid") and remote_jid_alt:
+        reply_jid = remote_jid_alt
+        phone = remote_jid_alt.split("@")[0]
+    else:
+        reply_jid = remote_jid
+        phone = remote_jid.split("@")[0]
 
     message_obj = data.get("message", {})
     text = (
@@ -62,8 +75,6 @@ async def receive_webhook(instance_name: str, request: Request, db: AsyncSession
 
     if not text:
         return {"ok": True}
-
-    push_name = data.get("pushName")
 
     channel = (await db.execute(
         select(Channel).where(Channel.instance_name == instance_name)
@@ -87,7 +98,10 @@ async def receive_webhook(instance_name: str, request: Request, db: AsyncSession
         lead.name = push_name
 
     db.add(Message(lead_id=lead.id, direction=MessageDirection.inbound, content=text))
-    await db.flush()
+    await db.commit()
+
+    if lead.agent_paused:
+        return {"ok": True}
 
     messages_rows = (await db.execute(
         select(Message).where(Message.lead_id == lead.id).order_by(Message.created_at).limit(MAX_HISTORY)
@@ -137,7 +151,7 @@ async def receive_webhook(instance_name: str, request: Request, db: AsyncSession
         )
         db.add(Message(lead_id=lead.id, direction=MessageDirection.outbound, content=reply))
         try:
-            await send_text(instance_name, phone, reply)
+            await send_text(instance_name, reply_jid, reply)
         except Exception as e:
             logger.error(f"Erro ao enviar WhatsApp (mensagem salva): {e}")
     except Exception as e:

@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Text, Enum as SAEnum
+from sqlalchemy import String, Integer, DateTime, ForeignKey, Text, Enum as SAEnum, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, UTC
 import enum
@@ -65,6 +65,7 @@ class Lead(Base):
     status: Mapped[str] = mapped_column(SAEnum(LeadStatus), default=LeadStatus.new)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     last_message_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    agent_paused: Mapped[bool] = mapped_column(Boolean, default=False)
     channel: Mapped["Channel"] = relationship(back_populates="leads")
     messages: Mapped[list["Message"]] = relationship(
         back_populates="lead", order_by="Message.created_at"
