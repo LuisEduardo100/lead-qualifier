@@ -58,3 +58,34 @@ async def test_create_business_instance_payload(monkeypatch):
     assert captured["json"]["number"] == "551199999999"
     assert captured["json"]["businessId"] == "BIZ456"
     assert captured["json"]["qrcode"] is False
+
+
+@pytest.mark.asyncio
+async def test_create_business_channel_missing_credentials(client, auth_headers):
+    r = await client.post("/api/channels", json={
+        "name": "WA Business",
+        "channel_type": "whatsapp-business",
+    }, headers=auth_headers)
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_create_business_channel_succeeds(client, auth_headers, monkeypatch):
+    from backend.services import evolution
+
+    async def fake_create_business(*args, **kwargs):
+        return {"instance": {"instanceName": "wabiz-test"}}
+
+    monkeypatch.setattr(evolution, "create_business_instance", fake_create_business)
+
+    r = await client.post("/api/channels", json={
+        "name": "WA Business Test",
+        "channel_type": "whatsapp-business",
+        "wa_token": "TOKEN",
+        "wa_phone_number_id": "123",
+        "wa_business_id": "456",
+    }, headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["channel_type"] == "whatsapp-business"
+    assert data["status"] == "connected"
