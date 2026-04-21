@@ -89,3 +89,75 @@ async def test_create_business_channel_succeeds(client, auth_headers, monkeypatc
     data = r.json()
     assert data["channel_type"] == "whatsapp-business"
     assert data["status"] == "connected"
+
+
+@pytest.mark.asyncio
+async def test_campaign_sender_marks_sent(db_session, monkeypatch):
+    from backend.services import evolution, campaign_sender
+    from backend.models import CampaignRecipientStatus, CampaignStatus
+
+    async def fake_send(instance_name, phone, text):
+        return {"key": {"id": "msg1"}}
+
+    monkeypatch.setattr(evolution, "send_text", fake_send)
+    monkeypatch.setattr(campaign_sender.asyncio, "sleep", AsyncMock())
+
+    channel = Channel(name="WB", instance_name="wb", channel_type="whatsapp-business", status="connected")
+    db_session.add(channel)
+    await db_session.flush()
+    lead = Lead(channel_id=channel.id, phone="5511900000001", status="hot")
+    db_session.add(lead)
+    await db_session.flush()
+    campaign = Campaign(
+        name="Test", message="Ola!", channel_id=channel.id,
+        filter_status="hot", status="running", total=1,
+    )
+    db_session.add(campaign)
+    await db_session.flush()
+    recipient = CampaignRecipient(campaign_id=campaign.id, lead_id=lead.id, phone=lead.phone)
+    db_session.add(recipient)
+    await db_session.commit()
+
+    await campaign_sender.run_campaign_with_session(campaign.id, db_session)
+
+    await db_session.refresh(recipient)
+    await db_session.refresh(campaign)
+    assert recipient.delivery_status == CampaignRecipientStatus.sent
+    assert campaign.sent_count == 1
+    assert campaign.status == CampaignStatus.done
+
+
+@pytest.mark.asyncio
+async def test_campaign_sender_marks_failed_on_error(db_session, monkeypatch):
+    from backend.services import evolution, campaign_sender
+    from backend.models import CampaignRecipientStatus, CampaignStatus
+
+    async def fake_send_error(instance_name, phone, text):
+        raise Exception("Evolution API 429")
+
+    monkeypatch.setattr(evolution, "send_text", fake_send_error)
+    monkeypatch.setattr(campaign_sender.asyncio, "sleep", AsyncMock())
+
+    channel = Channel(name="WB2", instance_name="wb2", channel_type="whatsapp-business", status="connected")
+    db_session.add(channel)
+    await db_session.flush()
+    lead = Lead(channel_id=channel.id, phone="5511900000002", status="hot")
+    db_session.add(lead)
+    await db_session.flush()
+    campaign = Campaign(
+        name="Fail", message="Msg", channel_id=channel.id,
+        filter_status="hot", status="running", total=1,
+    )
+    db_session.add(campaign)
+    await db_session.flush()
+    recipient = CampaignRecipient(campaign_id=campaign.id, lead_id=lead.id, phone=lead.phone)
+    db_session.add(recipient)
+    await db_session.commit()
+
+    await campaign_sender.run_campaign_with_session(campaign.id, db_session)
+
+    await db_session.refresh(recipient)
+    await db_session.refresh(campaign)
+    assert recipient.delivery_status == CampaignRecipientStatus.failed
+    assert campaign.failed_count == 1
+    assert campaign.status == CampaignStatus.done
