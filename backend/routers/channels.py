@@ -7,6 +7,7 @@ from backend.database import get_db
 from backend.models import Channel
 from backend.auth import get_current_user
 from backend.services import evolution
+from backend import qr_store
 import os
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
@@ -48,8 +49,12 @@ async def get_qrcode(channel_id: int, db: AsyncSession = Depends(get_db), _=Depe
     channel = (await db.execute(select(Channel).where(Channel.id == channel_id))).scalar_one_or_none()
     if not channel:
         raise HTTPException(404, "Canal não encontrado")
-    data = await evolution.get_qrcode(channel.instance_name)
-    return data
+    qr_store.clear_qr(channel.instance_name)
+    await evolution.trigger_connect(channel.instance_name)
+    b64 = await qr_store.wait_for_qr(channel.instance_name, timeout=20)
+    if not b64:
+        raise HTTPException(408, "QR Code não disponível")
+    return {"base64": b64}
 
 
 @router.get("/{channel_id}/status")

@@ -14,23 +14,15 @@ async def create_instance(instance_name: str, webhook_url: str) -> dict:
             "instanceName": instance_name,
             "integration": "WHATSAPP-BAILEYS",
             "webhook": {"url": webhook_url, "enabled": True,
-                        "events": ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]},
+                        "events": ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "QRCODE_UPDATED"]},
         })
         r.raise_for_status()
         return r.json()
 
 
-async def get_qrcode(instance_name: str) -> dict:
+async def trigger_connect(instance_name: str):
     async with httpx.AsyncClient() as client:
-        data = {}
-        for _ in range(10):
-            r = await client.get(f"{BASE}/instance/connect/{instance_name}", headers=HEADERS)
-            r.raise_for_status()
-            data = r.json()
-            if data.get("base64") or data.get("qrcode", {}).get("base64"):
-                return data
-            await asyncio.sleep(1)
-        return data
+        await client.get(f"{BASE}/instance/connect/{instance_name}", headers=HEADERS)
 
 
 async def get_connection_state(instance_name: str) -> str:

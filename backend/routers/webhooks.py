@@ -7,6 +7,7 @@ from backend.database import get_db
 from backend.models import Channel, Lead, Message, AgentConfig, LeadStatus, MessageDirection
 from backend.agents import qualification as qa, response as ra
 from backend.services.evolution import send_text
+from backend import qr_store
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["webhook"])
@@ -25,6 +26,20 @@ def _cfg(configs, key, default=""):
 async def receive_webhook(instance_name: str, request: Request, db: AsyncSession = Depends(get_db)):
     payload = await request.json()
     event = payload.get("event", "")
+
+    if event == "qrcode.updated":
+        data = payload.get("data", {})
+        qr_data = data.get("qrcode", {})
+        code = qr_data.get("base64") or qr_data.get("code") or data.get("base64")
+        if code and not code.startswith("data:"):
+            import qrcode, io, base64 as b64mod
+            img = qrcode.make(code)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            code = "data:image/png;base64," + b64mod.b64encode(buf.getvalue()).decode()
+        if code:
+            qr_store.set_qr(instance_name, code)
+        return {"ok": True}
 
     if event != "messages.upsert":
         return {"ok": True}

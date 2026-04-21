@@ -40,6 +40,7 @@ services:
       - CACHE_REDIS_ENABLED=true
       - CACHE_REDIS_URI=redis://redis:6379/1
       - CACHE_REDIS_PREFIX_KEY=evolution
+      - CONFIG_SESSION_PHONE_VERSION=
     volumes:
       - evolution_data:/evolution/instances
     depends_on:
@@ -54,7 +55,7 @@ services:
       - "8000:8000"
     environment:
       - EVOLUTION_API_URL=http://evolution:8080
-      - PUBLIC_URL=http://localhost:8000
+      - PUBLIC_URL=http://api:8000
     env_file:
       - .env
     volumes:
