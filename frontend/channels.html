@@ -11,6 +11,7 @@
     <span class="font-bold text-lg">Lead Qualifier</span>
     <a href="/dashboard.html" class="text-sm text-gray-400 hover:text-white">Pipeline</a>
     <a href="/channels.html" class="text-sm text-white font-medium border-b border-white pb-0.5">Canais</a>
+    <a href="/campaigns.html" class="text-sm text-gray-400 hover:text-white">Campanhas</a>
     <a href="/settings.html" class="text-sm text-gray-400 hover:text-white">Configurações</a>
   </div>
   <button onclick="localStorage.removeItem('token');location.href='/'" class="text-sm text-gray-400 hover:text-white">Sair</button>
@@ -46,6 +47,15 @@
   <div class="bg-white rounded-2xl p-8 w-full max-w-sm">
     <h2 class="font-bold text-lg text-gray-900 mb-6">Novo canal</h2>
     <input type="text" id="new-channel-name" placeholder="Nome do canal (ex: Vendas)" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gray-900">
+    <div class="flex gap-2 mb-4">
+      <button id="btn-type-baileys" onclick="setChannelType('baileys')" class="flex-1 border-2 border-gray-900 bg-gray-900 text-white text-sm py-2 rounded-lg font-medium">Baileys (QR Code)</button>
+      <button id="btn-type-business" onclick="setChannelType('whatsapp-business')" class="flex-1 border-2 border-gray-200 text-gray-600 text-sm py-2 rounded-lg">WA Business (Token)</button>
+    </div>
+    <div id="wa-business-fields" class="hidden space-y-3 mb-4">
+      <input type="text" id="wa-token" placeholder="Token de acesso permanente" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      <input type="text" id="wa-phone-id" placeholder="Phone Number ID" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      <input type="text" id="wa-biz-id" placeholder="Business Account ID" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+    </div>
     <div class="flex gap-3">
       <button onclick="document.getElementById('modal-add').classList.add('hidden')" class="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-lg text-sm">Cancelar</button>
       <button onclick="addChannel()" class="flex-1 bg-gray-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800">Criar</button>
@@ -59,6 +69,23 @@ if (!localStorage.getItem('token')) location.href = '/';
 let qrInterval = null;
 let qrRefreshInterval = null;
 let currentChannelId = null;
+let selectedChannelType = 'baileys';
+
+function setChannelType(type) {
+  selectedChannelType = type;
+  const baileyBtn = document.getElementById('btn-type-baileys');
+  const bizBtn = document.getElementById('btn-type-business');
+  const waFields = document.getElementById('wa-business-fields');
+  if (type === 'baileys') {
+    baileyBtn.className = 'flex-1 border-2 border-gray-900 bg-gray-900 text-white text-sm py-2 rounded-lg font-medium';
+    bizBtn.className = 'flex-1 border-2 border-gray-200 text-gray-600 text-sm py-2 rounded-lg';
+    waFields.classList.add('hidden');
+  } else {
+    bizBtn.className = 'flex-1 border-2 border-gray-900 bg-gray-900 text-white text-sm py-2 rounded-lg font-medium';
+    baileyBtn.className = 'flex-1 border-2 border-gray-200 text-gray-600 text-sm py-2 rounded-lg';
+    waFields.classList.remove('hidden');
+  }
+}
 
 async function load() {
   const channels = await apiGet('/api/channels');
@@ -88,9 +115,30 @@ async function load() {
 async function addChannel() {
   const name = document.getElementById('new-channel-name').value.trim();
   if (!name) return;
-  await apiPost('/api/channels', { name });
+
+  const body = { name, channel_type: selectedChannelType };
+
+  if (selectedChannelType === 'whatsapp-business') {
+    body.wa_token = document.getElementById('wa-token').value.trim();
+    body.wa_phone_number_id = document.getElementById('wa-phone-id').value.trim();
+    body.wa_business_id = document.getElementById('wa-biz-id').value.trim();
+    if (!body.wa_token || !body.wa_phone_number_id || !body.wa_business_id) {
+      alert('Preencha Token, Phone Number ID e Business Account ID.');
+      return;
+    }
+  }
+
   document.getElementById('modal-add').classList.add('hidden');
-  await load();
+  const res = await apiPost('/api/channels', body);
+  if (res.id) {
+    load();
+    if (selectedChannelType === 'baileys') {
+      currentChannelId = res.id;
+      openQR(res.id);
+    }
+  } else {
+    alert('Erro ao criar canal: ' + (res.detail || JSON.stringify(res)));
+  }
 }
 
 async function openQR(id) {
