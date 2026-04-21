@@ -4,12 +4,12 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy import select
-from backend.database import init_db, SessionLocal
+from backend.database import init_db, migrate_db, SessionLocal
 from backend.models import AdminUser
 from backend.auth import hash_password
 from backend.config import get_settings
 from backend.services.scheduler import start_scheduler, stop_scheduler
-from backend.routers import webhooks, channels, leads, config_router, auth_router
+from backend.routers import webhooks, channels, leads, config_router, auth_router, campaigns
 import os
 
 logging.basicConfig(level=logging.INFO)
@@ -19,10 +19,16 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await migrate_db()
     async with SessionLocal() as db:
-        existing = (await db.execute(select(AdminUser).where(AdminUser.username == settings.admin_username))).scalar_one_or_none()
+        existing = (await db.execute(
+            select(AdminUser).where(AdminUser.username == settings.admin_username)
+        )).scalar_one_or_none()
         if not existing:
-            db.add(AdminUser(username=settings.admin_username, hashed_password=hash_password(settings.admin_password)))
+            db.add(AdminUser(
+                username=settings.admin_username,
+                hashed_password=hash_password(settings.admin_password),
+            ))
             await db.commit()
     start_scheduler()
     yield
@@ -36,6 +42,7 @@ app.include_router(webhooks.router)
 app.include_router(channels.router)
 app.include_router(leads.router)
 app.include_router(config_router.router)
+app.include_router(campaigns.router)
 
 frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.exists(frontend_path):
