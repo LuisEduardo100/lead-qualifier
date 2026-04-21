@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configurações — Lead Qualifier</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<nav class="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
+  <div class="flex items-center gap-6">
+    <span class="font-bold text-lg">Lead Qualifier</span>
+    <a href="/dashboard.html" class="text-sm text-gray-400 hover:text-white">Pipeline</a>
+    <a href="/channels.html" class="text-sm text-gray-400 hover:text-white">Canais</a>
+    <a href="/settings.html" class="text-sm text-white font-medium border-b border-white pb-0.5">Configurações</a>
+  </div>
+  <button onclick="localStorage.removeItem('token');location.href='/'" class="text-sm text-gray-400 hover:text-white">Sair</button>
+</nav>
+
+<div class="max-w-3xl mx-auto px-6 py-8">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Configurações do Agente</h1>
+    <div id="save-status" class="text-sm text-gray-400 hidden">✅ Salvo</div>
+  </div>
+
+  <form id="settings-form" class="space-y-6">
+    <div class="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
+      <h2 class="font-semibold text-gray-900">Empresa</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">Nome da empresa</label>
+          <input name="company_name" class="field w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">Nome do agente (persona)</label>
+          <input name="agent_name" class="field w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        </div>
+        <div class="col-span-2">
+          <label class="block text-xs font-medium text-gray-500 mb-1">WhatsApp para link no email (com código do país)</label>
+          <input name="whatsapp_number" placeholder="5511999999999" class="field w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
+      <h2 class="font-semibold text-gray-900">Agente de IA</h2>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Contexto do negócio</label>
+        <textarea name="business_context" rows="3" class="field w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none" placeholder="Descreva sua empresa, produtos e público-alvo..."></textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Critérios de qualificação</label>
+        <textarea name="qualification_criteria" rows="3" class="field w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none" placeholder="Defina o que torna um lead quente, morno ou frio..."></textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Prompt / tom do agente</label>
+        <textarea name="agent_prompt" rows="4" class="field w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none" placeholder="Instruções para o comportamento do agente..."></textarea>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
+      <h2 class="font-semibold text-gray-900">Email de Follow-up</h2>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Produtos em destaque (JSON)</label>
+        <textarea name="featured_products" rows="5" class="field w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none" placeholder='[{"name":"Produto A","description":"Descrição"}]'></textarea>
+        <p class="text-xs text-gray-400 mt-1">Array JSON com name e description para cada produto.</p>
+      </div>
+    </div>
+
+    <button type="submit" class="w-full bg-gray-900 text-white py-3 rounded-xl font-medium hover:bg-gray-800 transition">
+      Salvar configurações
+    </button>
+  </form>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script>
+if (!localStorage.getItem('token')) location.href = '/';
+
+async function load() {
+  const cfg = await apiGet('/api/config');
+  document.querySelectorAll('.field').forEach(el => {
+    if (cfg[el.name] !== undefined) el.value = cfg[el.name];
+  });
+}
+
+document.getElementById('settings-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = {};
+  document.querySelectorAll('.field').forEach(el => { body[el.name] = el.value; });
+  await apiPut('/api/config', body);
+  const st = document.getElementById('save-status');
+  st.classList.remove('hidden');
+  setTimeout(() => st.classList.add('hidden'), 3000);
+});
+
+load();
+</script>
+</body>
+</html>

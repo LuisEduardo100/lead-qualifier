@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Canais — Lead Qualifier</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<nav class="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
+  <div class="flex items-center gap-6">
+    <span class="font-bold text-lg">Lead Qualifier</span>
+    <a href="/dashboard.html" class="text-sm text-gray-400 hover:text-white">Pipeline</a>
+    <a href="/channels.html" class="text-sm text-white font-medium border-b border-white pb-0.5">Canais</a>
+    <a href="/settings.html" class="text-sm text-gray-400 hover:text-white">Configurações</a>
+  </div>
+  <button onclick="localStorage.removeItem('token');location.href='/'" class="text-sm text-gray-400 hover:text-white">Sair</button>
+</nav>
+
+<div class="max-w-4xl mx-auto px-6 py-8">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Canais WhatsApp</h1>
+    <button onclick="document.getElementById('modal-add').classList.remove('hidden')"
+      class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800">
+      + Adicionar canal
+    </button>
+  </div>
+
+  <div id="channels-list" class="space-y-4"></div>
+</div>
+
+<!-- Modal QR -->
+<div id="modal-qr" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+  <div class="bg-white rounded-2xl p-8 w-full max-w-sm text-center">
+    <h2 class="font-bold text-lg text-gray-900 mb-2">Conectar WhatsApp</h2>
+    <p class="text-sm text-gray-500 mb-6">Abra o WhatsApp → Dispositivos conectados → Conectar dispositivo</p>
+    <div id="qr-container" class="flex justify-center mb-4">
+      <div class="animate-spin w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full"></div>
+    </div>
+    <p id="qr-status" class="text-sm text-gray-500 mb-6">Aguardando QR Code...</p>
+    <button onclick="closeQR()" class="text-sm text-gray-500 hover:text-gray-900">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal Add -->
+<div id="modal-add" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+  <div class="bg-white rounded-2xl p-8 w-full max-w-sm">
+    <h2 class="font-bold text-lg text-gray-900 mb-6">Novo canal</h2>
+    <input type="text" id="new-channel-name" placeholder="Nome do canal (ex: Vendas)" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gray-900">
+    <div class="flex gap-3">
+      <button onclick="document.getElementById('modal-add').classList.add('hidden')" class="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-lg text-sm">Cancelar</button>
+      <button onclick="addChannel()" class="flex-1 bg-gray-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800">Criar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script>
+if (!localStorage.getItem('token')) location.href = '/';
+let qrInterval = null;
+let currentChannelId = null;
+
+async function load() {
+  const channels = await apiGet('/api/channels');
+  const el = document.getElementById('channels-list');
+  if (!channels.length) {
+    el.innerHTML = '<div class="text-center py-12 text-gray-400"><p>Nenhum canal conectado ainda.</p><p class="text-sm mt-1">Adicione um canal para começar a receber leads.</p></div>';
+    return;
+  }
+  el.innerHTML = channels.map(c => `
+    <div class="bg-white rounded-xl border border-gray-100 p-5 flex items-center gap-4">
+      <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.862L0 24l6.335-1.508A11.946 11.946 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.85 0-3.587-.5-5.088-1.375l-.363-.216-3.762.896.948-3.671-.237-.381A9.946 9.946 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+      </div>
+      <div class="flex-1">
+        <p class="font-medium text-gray-900">${c.name}</p>
+        <p class="text-xs text-gray-400">${c.instance}</p>
+      </div>
+      <span class="px-2.5 py-1 rounded-full text-xs font-medium ${c.status === 'connected' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${c.status === 'connected' ? 'Conectado' : 'Desconectado'}</span>
+      ${c.status !== 'connected' ? `<button onclick="openQR(${c.id})" class="bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-gray-800">Conectar</button>` : ''}
+      <button onclick="removeChannel(${c.id})" class="text-gray-300 hover:text-red-500 ml-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+async function addChannel() {
+  const name = document.getElementById('new-channel-name').value.trim();
+  if (!name) return;
+  await apiPost('/api/channels', { name });
+  document.getElementById('modal-add').classList.add('hidden');
+  await load();
+}
+
+async function openQR(id) {
+  currentChannelId = id;
+  document.getElementById('modal-qr').classList.remove('hidden');
+  document.getElementById('qr-container').innerHTML = '<div class="animate-spin w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full"></div>';
+  document.getElementById('qr-status').textContent = 'Gerando QR Code...';
+  loadQR(id);
+  qrInterval = setInterval(() => checkStatus(id), 3000);
+}
+
+async function loadQR(id) {
+  const data = await apiGet(`/api/channels/${id}/qrcode`);
+  const base64 = data.base64 || data.qrcode?.base64;
+  if (base64) {
+    document.getElementById('qr-container').innerHTML = `<img src="${base64.startsWith('data:') ? base64 : 'data:image/png;base64,' + base64}" class="w-48 h-48 rounded-lg">`;
+    document.getElementById('qr-status').textContent = 'Escaneie com o WhatsApp';
+  }
+}
+
+async function checkStatus(id) {
+  const data = await apiGet(`/api/channels/${id}/status`);
+  if (data.status === 'connected') {
+    clearInterval(qrInterval);
+    document.getElementById('qr-status').textContent = '✅ Conectado com sucesso!';
+    document.getElementById('qr-container').innerHTML = '<div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center"><span class="text-3xl">✅</span></div>';
+    setTimeout(() => { closeQR(); load(); }, 2000);
+  }
+}
+
+function closeQR() {
+  clearInterval(qrInterval);
+  document.getElementById('modal-qr').classList.add('hidden');
+}
+
+async function removeChannel(id) {
+  if (!confirm('Remover canal?')) return;
+  await apiDelete(`/api/channels/${id}`);
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

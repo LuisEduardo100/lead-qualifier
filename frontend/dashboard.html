@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pipeline — Lead Qualifier</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<nav class="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
+  <div class="flex items-center gap-6">
+    <span class="font-bold text-lg">Lead Qualifier</span>
+    <a href="/dashboard.html" class="text-sm text-white font-medium border-b border-white pb-0.5">Pipeline</a>
+    <a href="/channels.html" class="text-sm text-gray-400 hover:text-white">Canais</a>
+    <a href="/settings.html" class="text-sm text-gray-400 hover:text-white">Configurações</a>
+  </div>
+  <button onclick="localStorage.removeItem('token');location.href='/'" class="text-sm text-gray-400 hover:text-white">Sair</button>
+</nav>
+
+<div class="max-w-7xl mx-auto px-6 py-8">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Pipeline de Leads</h1>
+    <div class="flex gap-2">
+      <button onclick="filter('all')" id="btn-all" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 text-white">Todos</button>
+      <button onclick="filter('hot')" id="btn-hot" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">Quentes</button>
+      <button onclick="filter('warm')" id="btn-warm" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">Mornos</button>
+      <button onclick="filter('cold')" id="btn-cold" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">Frios</button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-3 h-3 rounded-full bg-red-400"></span>
+        <h2 class="font-semibold text-gray-700">Quentes</h2>
+        <span id="count-hot" class="ml-auto text-xs text-gray-400 font-medium">0</span>
+      </div>
+      <div id="col-hot" class="space-y-3"></div>
+    </div>
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-3 h-3 rounded-full bg-yellow-400"></span>
+        <h2 class="font-semibold text-gray-700">Mornos</h2>
+        <span id="count-warm" class="ml-auto text-xs text-gray-400 font-medium">0</span>
+      </div>
+      <div id="col-warm" class="space-y-3"></div>
+    </div>
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-3 h-3 rounded-full bg-blue-400"></span>
+        <h2 class="font-semibold text-gray-700">Frios</h2>
+        <span id="count-cold" class="ml-auto text-xs text-gray-400 font-medium">0</span>
+      </div>
+      <div id="col-cold" class="space-y-3"></div>
+    </div>
+  </div>
+
+  <div id="flat-list" class="hidden space-y-3 mt-2"></div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script>
+if (!localStorage.getItem('token')) location.href = '/';
+let allLeads = [];
+
+function leadCard(l) {
+  return `<div onclick="location.href='/lead.html?id=${l.id}'" class="bg-white rounded-xl border border-gray-100 p-4 cursor-pointer hover:shadow-md transition">
+    <div class="flex items-start justify-between gap-2">
+      <div>
+        <p class="font-medium text-gray-900 text-sm">${l.name || l.phone}</p>
+        <p class="text-xs text-gray-500 mt-0.5">${l.phone}</p>
+      </div>
+      ${statusBadge(l.status)}
+    </div>
+    ${l.interest ? `<p class="text-xs text-gray-600 mt-2 line-clamp-2">${l.interest}</p>` : ''}
+    <div class="flex items-center gap-3 mt-3 text-xs text-gray-400">
+      ${l.channel ? `<span>${l.channel}</span>` : ''}
+      <span class="ml-auto">${timeAgo(l.last_message_at)}</span>
+    </div>
+  </div>`;
+}
+
+async function load() {
+  allLeads = await apiGet('/api/leads');
+  render('all');
+}
+
+function render(f) {
+  const hot = allLeads.filter(l => l.status === 'hot');
+  const warm = allLeads.filter(l => l.status === 'warm');
+  const cold = allLeads.filter(l => l.status === 'cold');
+  document.getElementById('count-hot').textContent = hot.length;
+  document.getElementById('count-warm').textContent = warm.length;
+  document.getElementById('count-cold').textContent = cold.length;
+
+  const board = document.querySelector('.grid');
+  const flat = document.getElementById('flat-list');
+
+  if (f === 'all') {
+    board.classList.remove('hidden'); flat.classList.add('hidden');
+    document.getElementById('col-hot').innerHTML = hot.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
+    document.getElementById('col-warm').innerHTML = warm.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
+    document.getElementById('col-cold').innerHTML = cold.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
+  } else {
+    board.classList.add('hidden'); flat.classList.remove('hidden');
+    flat.innerHTML = allLeads.filter(l => l.status === f).map(leadCard).join('') || '<p class="text-gray-400 text-center py-8">Nenhum lead encontrado</p>';
+  }
+}
+
+function filter(f) {
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.className = 'filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50';
+  });
+  const active = document.getElementById(`btn-${f === 'all' ? 'all' : f}`);
+  if (active) active.className = 'filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 text-white';
+  render(f);
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

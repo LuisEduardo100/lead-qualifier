@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead — Lead Qualifier</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<nav class="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
+  <div class="flex items-center gap-6">
+    <a href="/dashboard.html" class="text-gray-400 hover:text-white text-sm">← Pipeline</a>
+    <span class="font-bold text-lg">Lead Qualifier</span>
+  </div>
+  <button onclick="localStorage.removeItem('token');location.href='/'" class="text-sm text-gray-400 hover:text-white">Sair</button>
+</nav>
+
+<div class="max-w-4xl mx-auto px-6 py-8 grid grid-cols-3 gap-6">
+  <div class="col-span-1">
+    <div class="bg-white rounded-xl border border-gray-100 p-5 sticky top-6">
+      <div id="lead-info">
+        <div class="animate-pulse space-y-3">
+          <div class="h-5 bg-gray-200 rounded w-3/4"></div>
+          <div class="h-4 bg-gray-100 rounded w-1/2"></div>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-gray-100">
+        <label class="block text-xs font-medium text-gray-500 mb-2">Alterar status</label>
+        <select id="status-select" onchange="updateStatus()" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="new">Novo</option>
+          <option value="hot">Quente</option>
+          <option value="warm">Morno</option>
+          <option value="cold">Frio</option>
+          <option value="lost">Perdido</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-span-2">
+    <div class="bg-white rounded-xl border border-gray-100 flex flex-col" style="height:calc(100vh - 140px)">
+      <div class="px-5 py-4 border-b border-gray-100">
+        <h2 class="font-semibold text-gray-900">Histórico da conversa</h2>
+      </div>
+      <div id="messages" class="flex-1 overflow-y-auto px-5 py-4 space-y-3"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script>
+if (!localStorage.getItem('token')) location.href = '/';
+const id = new URLSearchParams(location.search).get('id');
+let lead = null;
+
+const INFO_MAP = { name: 'Nome', phone: 'Telefone', email: 'Email', city: 'Cidade', budget: 'Orçamento', project_type: 'Tipo de projeto', interest: 'Interesse', channel: 'Canal' };
+
+async function load() {
+  lead = await apiGet(`/api/leads/${id}`);
+  document.title = `${lead.name || lead.phone} — Lead Qualifier`;
+
+  const sel = document.getElementById('status-select');
+  sel.value = lead.status;
+
+  document.getElementById('lead-info').innerHTML = `
+    <div class="flex items-start justify-between gap-2 mb-4">
+      <div>
+        <p class="font-bold text-gray-900">${lead.name || 'Sem nome'}</p>
+        <p class="text-xs text-gray-400 mt-0.5">${lead.phone}</p>
+      </div>
+      ${statusBadge(lead.status)}
+    </div>
+    ${Object.entries(INFO_MAP).map(([k,l]) => lead[k] ? `<div class="mb-2"><p class="text-xs text-gray-400">${l}</p><p class="text-sm text-gray-800 font-medium">${lead[k]}</p></div>` : '').join('')}
+  `;
+
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = lead.messages.map(m => {
+    const isIn = m.direction === 'inbound';
+    return `<div class="flex ${isIn ? 'justify-start' : 'justify-end'}">
+      <div class="max-w-xs px-4 py-2.5 rounded-2xl text-sm ${isIn ? 'bg-gray-100 text-gray-800 rounded-tl-sm' : 'bg-gray-900 text-white rounded-tr-sm'}">
+        <p>${m.content}</p>
+        <p class="text-xs mt-1 ${isIn ? 'text-gray-400' : 'text-gray-400'}">${timeAgo(m.at)}</p>
+      </div>
+    </div>`;
+  }).join('');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function updateStatus() {
+  const s = document.getElementById('status-select').value;
+  await apiPatch(`/api/leads/${id}/status`, { status: s });
+}
+
+load();
+</script>
+</body>
+</html>
