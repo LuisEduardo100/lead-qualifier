@@ -57,6 +57,7 @@
 <script>
 if (!localStorage.getItem('token')) location.href = '/';
 let qrInterval = null;
+let qrRefreshInterval = null;
 let currentChannelId = null;
 
 async function load() {
@@ -97,17 +98,21 @@ async function openQR(id) {
   document.getElementById('modal-qr').classList.remove('hidden');
   document.getElementById('qr-container').innerHTML = '<div class="animate-spin w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full"></div>';
   document.getElementById('qr-status').textContent = 'Gerando QR Code...';
-  loadQR(id);
+  await loadQR(id);
   qrInterval = setInterval(() => checkStatus(id), 3000);
+  qrRefreshInterval = setInterval(() => loadQR(id), 15000);
 }
 
 async function loadQR(id) {
-  const data = await apiGet(`/api/channels/${id}/qrcode`);
-  const base64 = data.base64 || data.qrcode?.base64;
-  if (base64) {
-    document.getElementById('qr-container').innerHTML = `<img src="${base64.startsWith('data:') ? base64 : 'data:image/png;base64,' + base64}" class="w-48 h-48 rounded-lg">`;
-    document.getElementById('qr-status').textContent = 'Escaneie com o WhatsApp';
-  }
+  if (currentChannelId !== id) return;
+  try {
+    const data = await apiGet(`/api/channels/${id}/qrcode`);
+    const base64 = data.base64 || data.qrcode?.base64;
+    if (base64 && currentChannelId === id) {
+      document.getElementById('qr-container').innerHTML = `<img src="${base64.startsWith('data:') ? base64 : 'data:image/png;base64,' + base64}" class="w-48 h-48 rounded-lg">`;
+      document.getElementById('qr-status').textContent = 'Escaneie com o WhatsApp';
+    }
+  } catch(e) {}
 }
 
 async function checkStatus(id) {
@@ -122,6 +127,8 @@ async function checkStatus(id) {
 
 function closeQR() {
   clearInterval(qrInterval);
+  clearInterval(qrRefreshInterval);
+  currentChannelId = null;
   document.getElementById('modal-qr').classList.add('hidden');
 }
 
