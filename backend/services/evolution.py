@@ -20,6 +20,31 @@ async def create_instance(instance_name: str, webhook_url: str) -> dict:
         return r.json()
 
 
+async def create_business_instance(
+    instance_name: str,
+    webhook_url: str,
+    token: str,
+    number: str,
+    business_id: str,
+) -> dict:
+    async with httpx.AsyncClient() as client:
+        r = await client.post(f"{BASE}/instance/create", headers=HEADERS, json={
+            "instanceName": instance_name,
+            "integration": "WHATSAPP-BUSINESS",
+            "token": token,
+            "number": number,
+            "businessId": business_id,
+            "qrcode": False,
+            "webhook": {
+                "url": webhook_url,
+                "enabled": True,
+                "events": ["MESSAGES_UPSERT", "CONNECTION_UPDATE"],
+            },
+        })
+        r.raise_for_status()
+        return r.json()
+
+
 async def trigger_connect(instance_name: str):
     async with httpx.AsyncClient() as client:
         await client.get(f"{BASE}/instance/connect/{instance_name}", headers=HEADERS)
