@@ -46,7 +46,7 @@ Evolution API (v2.3.7)          ← gerencia instâncias WA (Baileys ou WA Busin
 FastAPI Backend (Python 3.12)
       ├── /webhook        ← recebe mensagens, roda qualificação + resposta
       ├── /api/leads      ← CRUD de leads, envio manual, pause/resume agente
-      ├── /api/channels   ← criação/gestão de canais WA
+      ├── /api/channels   ← criação/gestão/desconexão de canais WA
       ├── /api/campaigns  ← criação, preview, disparo e monitoramento de campanhas
       ├── /api/documents  ← upload/gestão de catálogo PDF (RAG)
       ├── /api/config     ← configuração do agente (prompt, contexto, critérios)
@@ -270,7 +270,17 @@ Login com as credenciais definidas em `ADMIN_USERNAME` e `ADMIN_PASSWORD`.
 
 > O canal fica com status **conectado** após o scan. Mensagens recebidas já serão processadas pelo agente.
 
-### 7. Criar um canal WhatsApp Business (API oficial — campanhas)
+### 7. Desconectar um canal sem perder dados
+
+Para trocar de número, fazer manutenção ou pausar o atendimento sem perder o histórico:
+
+1. Na tela **Canais**, clique em **Desconectar** no canal desejado (disponível apenas para canais Baileys conectados)
+2. O WhatsApp é desvinculado mas todos os leads, mensagens e métricas são preservados
+3. Para reconectar, clique em **Conectar** e escaneie o QR Code novamente
+
+> **Diferença de Remover:** o botão ✕ apaga permanentemente o canal e todos os seus dados. Use **Desconectar** quando quiser apenas encerrar a sessão temporariamente.
+
+### 8. Criar um canal WhatsApp Business (API oficial — campanhas)
 
 Para disparar campanhas em massa, você precisa de um canal WhatsApp Business:
 
@@ -307,21 +317,21 @@ Na aba **Documentos** em Configurações, faça upload de um PDF (catálogo, tab
 uv run pytest tests/ -v
 ```
 
-Resultado esperado: **80 testes passando**.
+Resultado esperado: **88 testes passando**.
 
 Os testes cobrem todos os módulos principais sem precisar de conexões externas (Evolution API e Groq são mockados):
 
 | Arquivo | Testes | O que cobre |
 |---|---|---|
 | `test_auth.py` | 3 | Login válido, senha errada, usuário inexistente |
-| `test_campaigns.py` | 13 | Modelo, envio (sucesso/falha), preview, criação, launch, delete |
-| `test_channels_extra.py` | 10 | List, create baileys/WA Business/duplicado, delete cascade, status, QR Code |
+| `test_campaigns.py` | 14 | Modelo, envio (sucesso/falha), preview (com filtro por canal), criação, launch, delete |
+| `test_channels_extra.py` | 14 | List, create baileys/WA Business/duplicado, delete cascade, status, QR Code, disconnect (preserva leads, WA Business 400, 404) |
 | `test_config.py` | 4 | GET defaults, PUT persiste, sobrescreve, merge DB + defaults |
 | `test_documents.py` | 8 | List, upload PDF (sucesso/vazio/não-PDF), substituição do doc ativo, delete |
 | `test_leads.py` | 9 | CRUD completo, filtro por status, toggle pause, send message |
 | `test_rag.py` | 11 | Busca sem doc, com match, ranking, query curta, doc ativo, extract PDF, filtro de chunk curto (title-only), threshold de similaridade semântica |
 | `test_agents.py` | 8 | qualify (warm/hot/fallback JSON), generate_response (catálogo, empty), followup |
-| `test_webhooks.py` | 13 | Funções puras (`_normalize_number`, `_cfg`) + handler (from_me, grupo, novo lead, paused, status hot, erro qualify, documento) |
+| `test_webhooks.py` | 16 | Funções puras (`_normalize_number`, `_cfg`) + handler (from_me, grupo, novo lead, paused, status hot, erro qualify, documento, extração PDF, catálogo race-condition) |
 
 ---
 
