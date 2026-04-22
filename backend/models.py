@@ -108,6 +108,28 @@ class AdminUser(Base):
     hashed_password: Mapped[str] = mapped_column(String(200))
 
 
+class AgentDocument(Base):
+    __tablename__ = "agent_documents"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    file_path: Mapped[str] = mapped_column(String(500))
+    original_size: Mapped[int] = mapped_column(Integer, default=0)
+    page_count: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+    chunks: Mapped[list["DocumentChunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("agent_documents.id"))
+    page_number: Mapped[int] = mapped_column(Integer)
+    chunk_text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[str | None] = mapped_column(Text, nullable=True)
+    document: Mapped["AgentDocument"] = relationship(back_populates="chunks")
+
+
 class Campaign(Base):
     __tablename__ = "campaigns"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

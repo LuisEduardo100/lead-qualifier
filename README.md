@@ -6,14 +6,15 @@ Sistema de automação comercial que recebe mensagens de WhatsApp, qualifica lea
 
 ## O que o sistema faz
 
-1. **Recebe mensagens de WhatsApp** via webhook (Evolution API)
+1. **Recebe mensagens de WhatsApp** via webhook (Evolution API) — texto, áudio (transcrição Whisper), imagem (descrição LLaMA 4 Scout) e documentos
 2. **Qualifica o lead automaticamente** usando IA — classifica como `hot`, `warm`, `cold` ou `new`
 3. **Coleta dados progressivamente** (nome, cidade, orçamento, tipo de projeto, email)
-4. **Responde como consultor humano** com tom natural de WhatsApp
-5. **Pausa o agente** quando o vendedor quer assumir a conversa manualmente
-6. **Dispara campanhas em massa** filtrando leads por status e enviando via canal WhatsApp Business
-7. **Envia follow-ups automáticos** para leads warm/hot que pararam de responder
-8. **Dashboard web** para visualizar leads, conversas, configurar o agente e monitorar campanhas
+4. **Responde como consultor humano** com tom natural de WhatsApp e delay realista de digitação
+5. **Usa catálogo de produtos (RAG)** — o agente busca chunks relevantes do PDF ativo para responder perguntas sobre produtos/serviços, e envia o arquivo ao lead quando solicitado
+6. **Pausa o agente** quando o vendedor quer assumir a conversa manualmente
+7. **Dispara campanhas em massa** filtrando leads por status e enviando via canal WhatsApp Business
+8. **Envia follow-ups automáticos** para leads warm/hot que pararam de responder
+9. **Dashboard web** para visualizar leads, conversas, configurar o agente, gerenciar documentos e monitorar campanhas
 
 ---
 
@@ -31,33 +32,39 @@ FastAPI Backend (Python 3.12)
       ├── /api/leads      ← CRUD de leads, envio manual, pause/resume agente
       ├── /api/channels   ← criação/gestão de canais WA
       ├── /api/campaigns  ← criação, preview, disparo e monitoramento de campanhas
+      ├── /api/documents  ← upload/gestão de catálogo PDF (RAG)
       ├── /api/config     ← configuração do agente (prompt, contexto, critérios)
       └── /api/auth       ← login JWT
       │
-      ├── Groq API (LLaMA 3.3 70B)   ← qualificação + geração de resposta
-      ├── SQLite (aiosqlite)          ← banco de dados local
-      └── APScheduler                ← follow-ups automáticos agendados
+      ├── Groq API (LLaMA 3.3 70B + Whisper Large v3)  ← LLM + transcrição de áudio
+      ├── SQLite (aiosqlite)                            ← banco de dados local
+      └── APScheduler                                   ← follow-ups automáticos agendados
 
 Frontend (HTML + Tailwind CSS)
+      ├── index.html       ← login
       ├── dashboard.html   ← visão geral dos leads
       ├── lead.html        ← conversa individual + envio manual
       ├── channels.html    ← gestão de canais WhatsApp
       ├── campaigns.html   ← campanhas de prospecção
-      └── settings.html    ← configuração do agente
+      └── settings.html    ← configuração do agente e upload de catálogo
 ```
 
 ### Fluxo de uma mensagem recebida
 
 ```
-Mensagem chega → _extract_message() → texto / transcrição de áudio / descrição de imagem
+Mensagem chega → _extract_message() → texto / transcrição de áudio / descrição de imagem / nome do documento
       ↓
 Lead encontrado ou criado no banco
+      ↓
+search_relevant_chunks() — busca semântica por cosseno (embeddings) com fallback por palavras-chave
       ↓
 qa.qualify() — LLM analisa histórico → retorna status + próxima pergunta + dados coletados
       ↓
 Atualiza Lead (status, nome, email, cidade, orçamento...)
       ↓
-ra.generate_response() — LLM gera resposta natural em 1-2 frases
+ra.generate_response() — LLM gera resposta natural (1-2 frases), com contexto do catálogo se relevante
+      ↓
+Se resposta contém [ENVIAR_CATALOGO] → envia PDF via Evolution API em background
       ↓
 send_text_human() → typing indicator → delay realista → mensagem enviada
 ```
@@ -70,13 +77,66 @@ send_text_human() → typing indicator → delay realista → mensagem enviada
 |---|---|
 | Backend | Python 3.12, FastAPI, SQLAlchemy (async) |
 | Banco de dados | SQLite com aiosqlite |
-| IA | Groq API — LLaMA 3.3 70B (texto) + Whisper Large v3 (áudio) |
+| IA — texto | Groq API — LLaMA 3.3 70B Versatile |
+| IA — áudio | Groq API — Whisper Large v3 |
+| IA — imagem | Groq API — LLaMA 4 Scout 17B |
+| RAG | pypdf + fastembed (paraphrase-multilingual-MiniLM-L12-v2) + busca semântica por cosseno |
 | WhatsApp | Evolution API v2.3.7 (Baileys + WhatsApp Business) |
 | Frontend | HTML + Tailwind CSS (CDN) |
 | Auth | JWT com python-jose |
 | Agendador | APScheduler |
 | Gerenciador de pacotes | uv |
 | Containerização | Docker + Docker Compose |
+
+---
+
+## MCP Server — Integração com Claude Code
+
+O projeto expõe um **MCP Server** (Model Context Protocol) que permite ao Claude Code inspecionar e controlar o pipeline de leads diretamente pela linha de comando, sem abrir o dashboard.
+
+### Ferramentas disponíveis
+
+| Ferramenta | O que faz |
+|---|---|
+| `list_leads` | Lista todos os leads com status, nome, cidade e última mensagem. Aceita filtro por status (`hot`, `warm`, `cold`, `new`, `lost`) |
+| `get_conversation` | Retorna o histórico completo de uma conversa por `lead_id` |
+| `update_lead_status` | Atualiza manualmente o status de um lead |
+| `get_pipeline_summary` | Conta leads por status — visão rápida do pipeline |
+| `get_config` | Retorna as configurações atuais do agente (prompt, contexto, critérios) |
+
+### Configurar no Claude Code
+
+Adicione ao seu `claude_desktop_config.json` (Mac: `~/Library/Application Support/Claude/`) ou ao `.claude/settings.json` na raiz do projeto:
+
+```json
+{
+  "mcpServers": {
+    "lead-qualifier": {
+      "command": "uv",
+      "args": ["run", "python", "mcp_server.py"],
+      "cwd": "/caminho/absoluto/para/lead-qualifier"
+    }
+  }
+}
+```
+
+> Certifique-se de que o backend está rodando antes de usar o MCP Server — ele lê o banco SQLite em `data/leads.db`.
+
+### Exemplos de uso no Claude Code
+
+```
+# Ver todos os leads quentes
+"Liste os leads com status hot"
+
+# Investigar uma conversa específica
+"Mostre o histórico completo do lead 42"
+
+# Resumo executivo do pipeline
+"Qual é o resumo do pipeline atual?"
+
+# Corrigir classificação incorreta
+"Atualize o status do lead 17 para warm"
+```
 
 ---
 
@@ -207,6 +267,14 @@ Acesse **Configurações** e personalize:
 - **Critérios de qualificação**: quando considerar um lead hot/warm/cold
 - **Produtos em destaque**: lista de produtos/serviços para o agente referenciar
 
+### 9. Fazer upload do catálogo (opcional)
+
+Na aba **Documentos** em Configurações, faça upload de um PDF (catálogo, tabela de preços, etc.). O sistema:
+- Extrai e indexa o texto de cada página
+- Usa busca por palavras-chave para encontrar chunks relevantes a cada mensagem
+- Inclui o conteúdo relevante no contexto do agente
+- Envia o PDF ao lead quando ele pedir "catálogo", "folheto" ou "material"
+
 ---
 
 ## Setup para desenvolvimento local (sem Docker)
@@ -233,7 +301,7 @@ docker compose up -d postgres redis evolution
 ### 4. Criar o diretório de dados
 
 ```bash
-mkdir -p data
+mkdir -p data/documents
 ```
 
 ### 5. Rodar o servidor
@@ -268,19 +336,21 @@ PUBLIC_URL=https://abc123.ngrok-free.app
 uv run pytest tests/ -v
 ```
 
-Resultado esperado: **13 testes passando**, sem warnings.
+Resultado esperado: **80 testes passando**.
 
-Os testes cobrem:
-- Defaults do modelo Campaign
-- Criação de instância WhatsApp Business (payload Evolution)
-- Validação de credenciais obrigatórias
-- Criação de canal via API
-- Envio de campanha (sucesso e falha)
-- Preview com deduplicação de telefones
-- Criação de campanha em rascunho
-- Transição de status ao lançar campanha
-- Proteção contra duplo lançamento
-- Deleção de campanha
+Os testes cobrem todos os módulos principais sem precisar de conexões externas (Evolution API e Groq são mockados):
+
+| Arquivo | Testes | O que cobre |
+|---|---|---|
+| `test_auth.py` | 3 | Login válido, senha errada, usuário inexistente |
+| `test_campaigns.py` | 13 | Modelo, envio (sucesso/falha), preview, criação, launch, delete |
+| `test_channels_extra.py` | 10 | List, create baileys/WA Business/duplicado, delete cascade, status, QR Code |
+| `test_config.py` | 4 | GET defaults, PUT persiste, sobrescreve, merge DB + defaults |
+| `test_documents.py` | 8 | List, upload PDF (sucesso/vazio/não-PDF), substituição do doc ativo, delete |
+| `test_leads.py` | 9 | CRUD completo, filtro por status, toggle pause, send message |
+| `test_rag.py` | 11 | Busca sem doc, com match, ranking, query curta, doc ativo, extract PDF, filtro de chunk curto (title-only), threshold de similaridade semântica |
+| `test_agents.py` | 8 | qualify (warm/hot/fallback JSON), generate_response (catálogo, empty), followup |
+| `test_webhooks.py` | 13 | Funções puras (`_normalize_number`, `_cfg`) + handler (from_me, grupo, novo lead, paused, status hot, erro qualify, documento) |
 
 ---
 
@@ -290,7 +360,7 @@ Os testes cobrem:
 lead-qualifier/
 ├── backend/
 │   ├── main.py              # app FastAPI, lifespan, rotas estáticas
-│   ├── models.py            # modelos SQLAlchemy (Lead, Channel, Campaign...)
+│   ├── models.py            # modelos SQLAlchemy (Lead, Channel, Campaign, AgentDocument...)
 │   ├── database.py          # engine async, init_db, migrate_db
 │   ├── config.py            # settings via .env (pydantic-settings)
 │   ├── auth.py              # JWT, hash de senha, dependência get_current_user
@@ -298,16 +368,18 @@ lead-qualifier/
 │   ├── agents/
 │   │   ├── qualification.py # LLM para classificar lead e coletar dados
 │   │   ├── response.py      # LLM para gerar resposta natural
-│   │   └── followup.py      # lógica de follow-up
+│   │   └── followup.py      # geração de mensagem de follow-up personalizada
 │   ├── routers/
 │   │   ├── webhooks.py      # POST /webhook/{instance} — coração do sistema
 │   │   ├── leads.py         # CRUD leads, envio manual, pause/resume
 │   │   ├── channels.py      # CRUD canais, QR code, status
 │   │   ├── campaigns.py     # CRUD campanhas, preview, launch, delete
+│   │   ├── documents.py     # upload/gestão de catálogo PDF
 │   │   ├── config_router.py # GET/PUT configurações do agente
 │   │   └── auth_router.py   # POST /api/auth/token (login)
 │   └── services/
 │       ├── evolution.py     # cliente HTTP Evolution API
+│       ├── rag.py           # extração de chunks PDF + busca por palavras-chave
 │       ├── campaign_sender.py # background task de disparo em massa
 │       ├── scheduler.py     # APScheduler para follow-ups
 │       └── email_service.py # envio de email via SMTP
@@ -317,11 +389,19 @@ lead-qualifier/
 │   ├── lead.html            # conversa individual
 │   ├── channels.html        # gestão de canais
 │   ├── campaigns.html       # campanhas de prospecção
-│   ├── settings.html        # configuração do agente
+│   ├── settings.html        # configuração do agente + upload de catálogo
 │   └── static/js/api.js     # helpers de fetch autenticado
 ├── tests/
-│   ├── conftest.py          # fixtures pytest (db in-memory, client, auth)
-│   └── test_campaigns.py    # testes de campanhas e canais
+│   ├── conftest.py              # fixtures pytest (SQLite in-memory, client HTTP, auth)
+│   ├── test_auth.py             # endpoint de login
+│   ├── test_campaigns.py        # campanhas e canais WA Business
+│   ├── test_channels_extra.py   # canais (baileys, status, delete cascade)
+│   ├── test_config.py           # configurações do agente
+│   ├── test_documents.py        # upload e gestão de documentos
+│   ├── test_leads.py            # CRUD de leads
+│   ├── test_rag.py              # serviço de busca e extração de PDF
+│   ├── test_agents.py           # agentes LLM (mocked)
+│   └── test_webhooks.py         # handler de webhook + funções auxiliares
 ├── Dockerfile
 ├── docker-compose.yml
 ├── pyproject.toml
@@ -334,7 +414,7 @@ lead-qualifier/
 
 | Variável | Obrigatória | Padrão | Descrição |
 |---|---|---|---|
-| `GROQ_API_KEY` | Sim | — | Chave da API Groq (llm + whisper) |
+| `GROQ_API_KEY` | Sim | — | Chave da API Groq (LLM + Whisper) |
 | `SECRET_KEY` | Sim | `change-this` | Segredo para assinar tokens JWT |
 | `ADMIN_USERNAME` | Não | `admin` | Usuário do painel web |
 | `ADMIN_PASSWORD` | Não | `admin123` | Senha do painel web |
@@ -366,6 +446,23 @@ O agente analisa o histórico completo de conversa a cada mensagem e classifica 
 Para leads warm/hot, o agente coleta progressivamente (1 pergunta por vez):
 nome, cidade, produto de interesse, orçamento estimado, tipo de projeto, e-mail (apenas para hot)
 
+### Catálogo de produtos (RAG)
+
+1. Faça upload de um PDF em **Configurações → Documentos**
+2. O sistema extrai o texto de cada página — páginas com menos de 8 palavras (ex: títulos ou capas) são descartadas automaticamente para evitar ruído no retrieval
+3. Cada chunk é vetorizado com o modelo `paraphrase-multilingual-MiniLM-L12-v2` (fastembed, roda localmente)
+4. A cada mensagem recebida, é feita busca semântica por cosseno: apenas chunks com similaridade ≥ 0.10 são incluídos no contexto — chunks irrelevantes são suprimidos mesmo que sejam os "menos piores"
+5. Fallback por sobreposição de palavras-chave quando o documento ainda não possui embeddings
+6. Se o lead pedir "catálogo", "folheto", "PDF" ou "material", o agente inclui `[ENVIAR_CATALOGO]` na resposta e o arquivo é enviado automaticamente via WhatsApp
+7. Apenas um documento fica ativo por vez — novo upload desativa o anterior
+
+### Suporte a mídia
+
+- **Áudio / PTT**: transcrição automática via Whisper Large v3. Se a transcrição falhar, o agente pede ao lead que digite
+- **Imagem**: descrição automática via LLaMA 4 Scout 17B Vision. Caption original preservado como fallback
+- **Documento**: nome do arquivo e caption extraídos e incluídos no histórico
+- **Sticker / Reação**: ignorado silenciosamente
+
 ### Pause/resume do agente
 
 Na tela de conversa individual, o vendedor pode pausar o agente para assumir o atendimento manualmente. Novas mensagens continuam sendo salvas, mas o LLM não responde até o agente ser reativado.
@@ -373,7 +470,7 @@ Na tela de conversa individual, o vendedor pode pausar o agente para assumir o a
 ### Campanhas de prospecção
 
 1. Crie uma campanha definindo nome, mensagem, canal (WhatsApp Business) e filtro de status
-2. Use **Preview** para ver quantos leads serão atingidos antes de lançar
+2. Use **Preview** para ver quantos leads serão atingidos antes de lançar (deduplicação automática de telefones)
 3. Ao lançar, o sistema percorre todos os destinatários com delay de 1,5s entre envios
 4. Acompanhe o progresso em tempo real: enviados, falhas, status por destinatário
 

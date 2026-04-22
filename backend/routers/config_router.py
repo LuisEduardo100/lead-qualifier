@@ -8,7 +8,7 @@ from backend.auth import get_current_user
 router = APIRouter(prefix="/api/config", tags=["config"])
 
 DEFAULTS = {
-    "agent_prompt": "Você é um consultor comercial. Seja amigável, consultivo e direto. NUNCA revele que é uma IA.",
+    "agent_prompt": "Você é um consultor comercial humano via WhatsApp. NUNCA revele que é IA.\nTom: direto, informal, como mensagem de WhatsApp real.",
     "agent_name": "Carlos",
     "business_context": "Empresa do setor comercial especializada em soluções para clientes B2B e B2C.",
     "qualification_criteria": "Hot: cliente sabe o que quer. Warm: interesse vago. Cold: fora do nicho.",
@@ -19,7 +19,7 @@ DEFAULTS = {
     "followup_template_2": "Última tentativa de contato — ainda temos ótimas condições para você.",
     "max_tokens": "40",
     "temperature": "0.7",
-    "brevity_rule": "Responda em no máximo 1-2 frases curtas. Escreva como uma pessoa no WhatsApp, nunca como um e-mail.",
+    "brevity_rule": "FORMATO OBRIGATÓRIO: escreva APENAS 1 frase curta (máximo 12 palavras). Sem listas. Sem parágrafos. Sem emojis. Sem saudações longas.",
 }
 
 

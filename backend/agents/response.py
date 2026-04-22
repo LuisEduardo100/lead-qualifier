@@ -8,7 +8,6 @@ settings = get_settings()
 client = AsyncGroq(api_key=settings.groq_api_key)
 
 DEFAULT_SYSTEM = """Você é um consultor comercial humano via WhatsApp. NUNCA revele que é IA.
-FORMATO OBRIGATÓRIO: escreva APENAS 1 frase curta (máximo 12 palavras). Sem listas. Sem parágrafos. Sem emojis. Sem saudações longas.
 Tom: direto, informal, como mensagem de WhatsApp real."""
 
 
@@ -21,10 +20,20 @@ async def generate_response(
     max_tokens: int = 40,
     temperature: float = 0.7,
     brevity_rule: str = "",
+    catalog_chunks: list[str] | None = None,
+    has_catalog: bool = False,
+    catalog_already_sent: bool = False,
 ) -> str:
     system = agent_prompt or DEFAULT_SYSTEM
     if business_context:
         system += f"\n\nContexto do negócio: {business_context}"
+    if catalog_chunks:
+        catalog_text = "\n---\n".join(catalog_chunks)
+        system += f"\n\nInformações do catálogo de produtos (use para responder perguntas sobre produtos/serviços):\n{catalog_text}"
+    if has_catalog:
+        system += "\n\nO catálogo PDF está sendo enviado automaticamente agora. Confirme brevemente que está enviando."
+    elif catalog_already_sent:
+        system += "\n\nO catálogo já foi enviado anteriormente nesta conversa. Se o usuário pedir de novo, diga que já enviou e peça para verificar as mensagens anteriores."
     if brevity_rule:
         system += f"\n\n{brevity_rule}"
 
@@ -41,13 +50,14 @@ async def generate_response(
         *history,
     ]
 
-    logger.info(f"[generate_response] max_tokens={max_tokens} temperature={temperature} system_preview={system[:80]!r}")
+    # Reserve extra tokens for [ENVIAR_CATALOGO] marker so it isn't truncated
+    effective_max_tokens = max_tokens + 15 if has_catalog else max_tokens
+    logger.info(f"[generate_response] max_tokens={effective_max_tokens} temperature={temperature} system_preview={system[:80]!r}")
     response = await client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=messages,
         temperature=temperature,
-        max_tokens=max_tokens,
-        stop=["\n•", "\n-", "\n1.", "\n*"],
+        max_tokens=effective_max_tokens,
     )
 
     choice = response.choices[0]

@@ -103,7 +103,12 @@ async function load() {
     const safe = escHtml(m.content);
 
     let body;
-    if (m.media_type === 'image') {
+    if (m.content === '[CATÁLOGO_ENVIADO]') {
+      body = `<div class="flex items-center gap-2.5">
+        <div class="flex-shrink-0 w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center text-red-600 text-sm font-bold">PDF</div>
+        <div><p class="text-xs font-medium leading-tight">Catálogo enviado</p><p class="text-xs opacity-60 leading-tight">Arquivo PDF</p></div>
+      </div>`;
+    } else if (m.media_type === 'image') {
       const img = m.media_url ? `<img src="data:image/jpeg;base64,${escHtml(m.media_url)}" class="rounded-lg max-w-full mb-1" style="max-height:180px" alt="imagem">` : '';
       body = img + `<p class="text-xs italic opacity-70">${safe}</p>`;
     } else if (m.media_type === 'audio') {

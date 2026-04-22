@@ -175,3 +175,36 @@ async def fetch_instance_info(instance_name: str) -> dict:
 async def delete_instance(instance_name: str):
     async with httpx.AsyncClient() as client:
         await client.delete(f"{BASE}/instance/delete/{instance_name}", headers=HEADERS)
+
+
+async def send_document(instance_name: str, phone: str, file_path: str, filename: str, caption: str = "") -> dict:
+    """Send a PDF document via Evolution API using base64 encoding."""
+    import base64
+    import logging
+    logger = logging.getLogger(__name__)
+
+    number = phone if "@" in phone else phone.replace("+", "").replace(" ", "").replace("-", "")
+
+    with open(file_path, "rb") as f:
+        file_b64 = base64.b64encode(f.read()).decode()
+
+    payload = {
+        "number": number,
+        "mediatype": "document",
+        "mimetype": "application/pdf",
+        "media": file_b64,
+        "fileName": filename,
+    }
+    if caption:
+        payload["caption"] = caption
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        r = await client.post(
+            f"{BASE}/message/sendMedia/{instance_name}",
+            headers=HEADERS,
+            json=payload,
+        )
+        if not r.is_success:
+            logger.error(f"send_document {r.status_code}: {r.text}")
+        r.raise_for_status()
+        return r.json()

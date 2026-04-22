@@ -10,7 +10,7 @@ from backend.models import AdminUser
 from backend.auth import hash_password
 from backend.config import get_settings
 from backend.services.scheduler import start_scheduler, stop_scheduler
-from backend.routers import webhooks, channels, leads, config_router, auth_router, campaigns
+from backend.routers import webhooks, channels, leads, config_router, auth_router, campaigns, documents
 import os
 
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +34,10 @@ async def lifespan(app: FastAPI):
                     await conn.execute(text(f"ALTER TABLE messages ADD COLUMN {col} {definition}"))
             except Exception:
                 pass
+        try:
+            await conn.execute(text("ALTER TABLE document_chunks ADD COLUMN embedding TEXT"))
+        except Exception:
+            pass
     async with SessionLocal() as db:
         existing = (await db.execute(
             select(AdminUser).where(AdminUser.username == settings.admin_username)
@@ -57,6 +61,7 @@ app.include_router(channels.router)
 app.include_router(leads.router)
 app.include_router(config_router.router)
 app.include_router(campaigns.router)
+app.include_router(documents.router)
 
 frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.exists(frontend_path):

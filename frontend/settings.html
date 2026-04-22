@@ -101,6 +101,58 @@
       Salvar configurações
     </button>
   </form>
+
+  <!-- Document / Catalog Section (outside the main form) -->
+  <div class="bg-white rounded-xl border border-gray-100 p-6 space-y-4 mt-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="font-semibold text-gray-900">Catálogo / Documento</h2>
+        <p class="text-xs text-gray-400 mt-0.5">O agente usará este PDF para responder perguntas sobre produtos e poderá enviá-lo ao cliente quando solicitado.</p>
+      </div>
+    </div>
+
+    <!-- Current document -->
+    <div id="doc-current" class="hidden">
+      <div class="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+        <div class="flex items-center gap-3">
+          <svg class="w-8 h-8 text-red-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+          </svg>
+          <div>
+            <p id="doc-name" class="text-sm font-medium text-gray-800"></p>
+            <p id="doc-meta" class="text-xs text-gray-400"></p>
+          </div>
+        </div>
+        <button id="doc-delete-btn" class="text-xs text-red-500 hover:text-red-700 font-medium px-3 py-1.5 rounded-lg hover:bg-red-50 transition">Remover</button>
+      </div>
+    </div>
+
+    <div id="doc-empty" class="text-sm text-gray-400">Nenhum documento carregado.</div>
+
+    <!-- Upload area -->
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-2">Carregar novo PDF (substitui o atual)</label>
+      <div id="drop-zone" class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center cursor-pointer hover:border-gray-400 transition">
+        <svg class="mx-auto w-8 h-8 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+        <p class="text-sm text-gray-500">Arraste o PDF aqui ou <span class="text-gray-900 font-medium underline">clique para selecionar</span></p>
+        <p class="text-xs text-gray-400 mt-1">Máximo recomendado: 10 MB</p>
+        <input id="pdf-input" type="file" accept=".pdf" class="hidden">
+      </div>
+    </div>
+
+    <div id="upload-progress" class="hidden">
+      <div class="flex items-center gap-3 text-sm text-gray-600">
+        <svg class="animate-spin w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        Processando PDF e indexando páginas...
+      </div>
+    </div>
+    <div id="upload-error" class="hidden text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2"></div>
+  </div>
 </div>
 
 <script src="/static/js/api.js"></script>
@@ -134,6 +186,96 @@ document.getElementById('settings-form').addEventListener('submit', async e => {
 });
 
 load();
+
+// ── Document / Catalog ──────────────────────────────────────────────────
+let currentDocId = null;
+
+async function loadDocument() {
+  try {
+    const docs = await apiGet('/api/documents');
+    const active = docs.find(d => d.is_active);
+    if (active) {
+      currentDocId = active.id;
+      document.getElementById('doc-name').textContent = active.filename;
+      const kb = Math.round(active.original_size / 1024);
+      document.getElementById('doc-meta').textContent = `${active.page_count} página(s) · ${kb} KB`;
+      document.getElementById('doc-current').classList.remove('hidden');
+      document.getElementById('doc-empty').classList.add('hidden');
+    } else {
+      currentDocId = null;
+      document.getElementById('doc-current').classList.add('hidden');
+      document.getElementById('doc-empty').classList.remove('hidden');
+    }
+  } catch (e) {
+    console.error('loadDocument error', e);
+  }
+}
+
+async function uploadPDF(file) {
+  const progress = document.getElementById('upload-progress');
+  const errorEl = document.getElementById('upload-error');
+  errorEl.classList.add('hidden');
+  progress.classList.remove('hidden');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const token = localStorage.getItem('token');
+    const r = await fetch('/api/documents/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(err.detail || 'Erro ao fazer upload');
+    }
+    await loadDocument();
+    document.getElementById('pdf-input').value = '';
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.classList.remove('hidden');
+  } finally {
+    progress.classList.add('hidden');
+  }
+}
+
+document.getElementById('drop-zone').addEventListener('click', () => {
+  document.getElementById('pdf-input').click();
+});
+
+document.getElementById('pdf-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) uploadPDF(file);
+});
+
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-gray-500'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-gray-500'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('border-gray-500');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadPDF(file);
+});
+
+document.getElementById('doc-delete-btn').addEventListener('click', async () => {
+  if (!currentDocId) return;
+  if (!confirm('Remover o documento? O agente perderá acesso ao catálogo.')) return;
+  try {
+    const token = localStorage.getItem('token');
+    await fetch(`/api/documents/${currentDocId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    await loadDocument();
+  } catch (e) {
+    alert('Erro ao remover documento: ' + e.message);
+  }
+});
+
+loadDocument();
 </script>
 </body>
 </html>

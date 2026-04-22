@@ -8,7 +8,8 @@ from datetime import datetime, UTC
 from backend.database import get_db
 from backend.models import Channel, Lead, Message, AgentConfig, LeadStatus, MessageDirection
 from backend.agents import qualification as qa, response as ra
-from backend.services.evolution import send_text_human, download_media_base64
+from backend.services.evolution import send_text_human, download_media_base64, send_document
+from backend.services.rag import search_relevant_chunks, get_active_document
 from backend import qr_store
 from backend.config import get_settings
 
@@ -214,6 +215,7 @@ async def receive_webhook(
     history = [
         {"role": "user" if m.direction == MessageDirection.inbound else "assistant", "content": m.content}
         for m in messages_rows
+        if m.content and m.content.strip()
     ]
 
     configs = (await db.execute(select(AgentConfig))).scalars().all()
@@ -223,6 +225,14 @@ async def receive_webhook(
     max_tokens = int(_cfg(configs, "max_tokens", "30"))
     temperature = float(_cfg(configs, "temperature", "0.7"))
     brevity_rule = _cfg(configs, "brevity_rule", "")
+
+    active_doc = await get_active_document(db)
+    catalog_chunks = await search_relevant_chunks(text, db) if active_doc else []
+    catalog_already_sent = any(
+        m.content == "[CATÁLOGO_ENVIADO]" for m in messages_rows
+    )
+    _CATALOG_KEYWORDS = {"catálogo", "catalogo", "pdf", "folheto", "material", "tabela", "lista de preço", "lista de precos"}
+    user_asked_catalog = any(kw in text.lower() for kw in _CATALOG_KEYWORDS)
 
     try:
         qual = await qa.qualify(history, business_context, criteria)
@@ -240,7 +250,7 @@ async def receive_webhook(
             setattr(lead, field, collected[field])
 
     try:
-        reply = await ra.generate_response(
+        raw_reply = await ra.generate_response(
             history=history,
             next_question=qual.get("next_question"),
             lead_status=qual.get("status", "warm"),
@@ -249,14 +259,33 @@ async def receive_webhook(
             max_tokens=max_tokens,
             temperature=temperature,
             brevity_rule=brevity_rule,
+            catalog_chunks=catalog_chunks,
+            has_catalog=active_doc is not None and user_asked_catalog and not catalog_already_sent,
+            catalog_already_sent=catalog_already_sent and user_asked_catalog,
         )
-        if not reply:
+        if not raw_reply:
             logger.warning("[webhook] LLM returned empty reply — skipping send")
             await db.commit()
             return {"ok": True}
+
+        send_catalog = user_asked_catalog and active_doc is not None and not catalog_already_sent
+        reply = raw_reply.replace("[ENVIAR_CATALOGO]", "").strip()
+
         db.add(Message(lead_id=lead.id, direction=MessageDirection.outbound, content=reply))
         await db.commit()
         background_tasks.add_task(send_text_human, instance_name, reply_jid, reply)
+
+        if send_catalog and active_doc:
+            db.add(Message(lead_id=lead.id, direction=MessageDirection.outbound, content="[CATÁLOGO_ENVIADO]"))
+            await db.commit()
+            background_tasks.add_task(
+                send_document,
+                instance_name,
+                reply_jid,
+                active_doc.file_path,
+                active_doc.filename,
+            )
+            logger.info(f"[webhook] Scheduling catalog send: {active_doc.filename}")
     except Exception as e:
         logger.error(f"Erro ao gerar/enviar resposta: {e}")
         await db.commit()
