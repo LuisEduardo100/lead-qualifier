@@ -1,6 +1,22 @@
 # Lead Qualifier — Agente de Qualificação de Leads via WhatsApp
 
-Sistema de automação comercial que recebe mensagens de WhatsApp, qualifica leads automaticamente com IA e permite disparos de campanhas de prospecção em massa. Desenvolvido com FastAPI, SQLAlchemy, Evolution API e Groq (LLaMA 3.3 70B).
+> Automação comercial para equipes de vendas que perdem tempo qualificando leads manualmente no WhatsApp.
+
+---
+
+## Por que esse projeto existe
+
+Times comerciais — especialmente SDRs — gastam horas por dia respondendo as mesmas perguntas no WhatsApp, tentando descobrir se um contato tem perfil de compra antes de passar para o closer. O processo é repetitivo, inconsistente entre atendentes e escala mal.
+
+Além disso, disparar campanhas de prospecção em massa exige exportar listas, usar ferramentas separadas e monitorar retornos manualmente — o que fragmenta o fluxo de trabalho e gera perda de dados.
+
+O **Lead Qualifier** resolve os dois problemas em um único sistema:
+
+1. **Qualificação automática via IA** — o agente conduz a conversa no WhatsApp, coleta dados progressivamente e classifica cada lead como `hot`, `warm`, `cold` ou `new` sem intervenção humana
+2. **Campanhas integradas ao pipeline** — dispara mensagens em massa para segmentos filtrados pelo próprio CRM, com acompanhamento de entrega em tempo real
+3. **Handoff suave para o vendedor** — quando o lead está quente, o agente pode ser pausado para o humano assumir, com todo o histórico e dados coletados visíveis na interface
+
+O resultado é um SDR que atende dezenas de conversas simultâneas 24/7, filtra o ruído e entrega apenas leads qualificados para o time de vendas.
 
 ---
 
@@ -37,7 +53,7 @@ FastAPI Backend (Python 3.12)
       └── /api/auth       ← login JWT
       │
       ├── Groq API (LLaMA 3.3 70B + Whisper Large v3)  ← LLM + transcrição de áudio
-      ├── SQLite (aiosqlite)                            ← banco de dados local
+      ├── SQLite (aiosqlite)                            ← banco principal + vetores RAG
       └── APScheduler                                   ← follow-ups automáticos agendados
 
 Frontend (HTML + Tailwind CSS)
@@ -56,7 +72,7 @@ Mensagem chega → _extract_message() → texto / transcrição de áudio / desc
       ↓
 Lead encontrado ou criado no banco
       ↓
-search_relevant_chunks() — busca semântica por cosseno (embeddings) com fallback por palavras-chave
+search_relevant_chunks() — busca semântica por cosseno (embeddings armazenados no SQLite) com fallback por palavras-chave
       ↓
 qa.qualify() — LLM analisa histórico → retorna status + próxima pergunta + dados coletados
       ↓
@@ -76,11 +92,14 @@ send_text_human() → typing indicator → delay realista → mensagem enviada
 | Componente | Tecnologia |
 |---|---|
 | Backend | Python 3.12, FastAPI, SQLAlchemy (async) |
-| Banco de dados | SQLite com aiosqlite |
+| Banco de dados | SQLite com aiosqlite — armazena leads, mensagens, config e vetores RAG |
 | IA — texto | Groq API — LLaMA 3.3 70B Versatile |
 | IA — áudio | Groq API — Whisper Large v3 |
 | IA — imagem | Groq API — LLaMA 4 Scout 17B |
-| RAG | pypdf + fastembed (paraphrase-multilingual-MiniLM-L12-v2) + busca semântica por cosseno |
+| RAG — extração | pypdf — leitura e chunking de PDFs por página |
+| RAG — embeddings | fastembed (paraphrase-multilingual-MiniLM-L12-v2) — roda localmente, sem API externa |
+| RAG — armazenamento | SQLite — vetores serializados como JSON na tabela `document_chunks` |
+| RAG — retrieval | Busca semântica por similaridade de cosseno (numpy) com fallback por palavras-chave |
 | WhatsApp | Evolution API v2.3.7 (Baileys + WhatsApp Business) |
 | Frontend | HTML + Tailwind CSS (CDN) |
 | Auth | JWT com python-jose |
@@ -92,7 +111,11 @@ send_text_human() → typing indicator → delay realista → mensagem enviada
 
 ## MCP Server — Integração com Claude Code
 
-O projeto expõe um **MCP Server** (Model Context Protocol) que permite ao Claude Code inspecionar e controlar o pipeline de leads diretamente pela linha de comando, sem abrir o dashboard.
+O projeto expõe um **MCP Server** (Model Context Protocol) que conecta o pipeline de leads diretamente ao Claude Code. Isso serve a dois propósitos:
+
+**Em desenvolvimento:** inspecionar estado do banco, depurar classificações incorretas, verificar o efeito de mudanças no agente e consultar configurações — tudo sem abrir o dashboard ou escrever queries SQL manualmente.
+
+**Em produção:** acompanhar o pipeline, corrigir classificações e obter resumos executivos direto da linha de comando, integrando o Lead Qualifier ao fluxo de trabalho do time técnico.
 
 ### Ferramentas disponíveis
 
@@ -106,7 +129,7 @@ O projeto expõe um **MCP Server** (Model Context Protocol) que permite ao Claud
 
 ### Configurar no Claude Code
 
-Adicione ao seu `claude_desktop_config.json` (Mac: `~/Library/Application Support/Claude/`) ou ao `.claude/settings.json` na raiz do projeto:
+Adicione ao seu `.claude/settings.json` na raiz do projeto ou ao `claude_desktop_config.json` (Mac: `~/Library/Application Support/Claude/`):
 
 ```json
 {
@@ -120,7 +143,7 @@ Adicione ao seu `claude_desktop_config.json` (Mac: `~/Library/Application Suppor
 }
 ```
 
-> Certifique-se de que o backend está rodando antes de usar o MCP Server — ele lê o banco SQLite em `data/leads.db`.
+> O MCP Server lê diretamente o banco SQLite em `data/leads.db`. O backend não precisa estar rodando para usar as ferramentas de leitura.
 
 ### Exemplos de uso no Claude Code
 
@@ -134,8 +157,11 @@ Adicione ao seu `claude_desktop_config.json` (Mac: `~/Library/Application Suppor
 # Resumo executivo do pipeline
 "Qual é o resumo do pipeline atual?"
 
-# Corrigir classificação incorreta
+# Corrigir classificação incorreta durante desenvolvimento
 "Atualize o status do lead 17 para warm"
+
+# Verificar configuração ativa do agente
+"Qual é o prompt atual do agente?"
 ```
 
 ---
@@ -146,8 +172,6 @@ Adicione ao seu `claude_desktop_config.json` (Mac: `~/Library/Application Suppor
 - **Git** instalado
 - Conta gratuita no [Groq Console](https://console.groq.com) para obter a API key
 - Para canais WhatsApp Business: conta de desenvolvedor Meta com App configurado
-
-> Para desenvolvimento local sem Docker: Python 3.12+ e [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 ---
 
@@ -277,59 +301,6 @@ Na aba **Documentos** em Configurações, faça upload de um PDF (catálogo, tab
 
 ---
 
-## Setup para desenvolvimento local (sem Docker)
-
-### 1. Instalar uv
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-### 2. Instalar dependências
-
-```bash
-uv sync
-uv sync --optional dev   # inclui pytest
-```
-
-### 3. Subir apenas a Evolution API via Docker
-
-```bash
-docker compose up -d postgres redis evolution
-```
-
-### 4. Criar o diretório de dados
-
-```bash
-mkdir -p data/documents
-```
-
-### 5. Rodar o servidor
-
-```bash
-uv run uvicorn backend.main:app --reload --port 8000
-```
-
-O `--reload` reinicia o servidor automaticamente ao salvar arquivos.
-
-### 6. Configurar PUBLIC_URL para webhooks locais
-
-A Evolution API precisa chamar seu backend via webhook. Em desenvolvimento local, use [ngrok](https://ngrok.com) ou [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) para expor a porta 8000:
-
-```bash
-ngrok http 8000
-```
-
-Defina a URL pública no `.env`:
-
-```env
-PUBLIC_URL=https://abc123.ngrok-free.app
-```
-
-> **Importante:** reinicie o servidor após alterar `PUBLIC_URL`. Canais já criados precisam ser recriados para apontar para a nova URL.
-
----
-
 ## Rodando os testes
 
 ```bash
@@ -379,7 +350,7 @@ lead-qualifier/
 │   │   └── auth_router.py   # POST /api/auth/token (login)
 │   └── services/
 │       ├── evolution.py     # cliente HTTP Evolution API
-│       ├── rag.py           # extração de chunks PDF + busca por palavras-chave
+│       ├── rag.py           # extração de chunks PDF, geração de embeddings e busca semântica
 │       ├── campaign_sender.py # background task de disparo em massa
 │       ├── scheduler.py     # APScheduler para follow-ups
 │       └── email_service.py # envio de email via SMTP
@@ -402,6 +373,7 @@ lead-qualifier/
 │   ├── test_rag.py              # serviço de busca e extração de PDF
 │   ├── test_agents.py           # agentes LLM (mocked)
 │   └── test_webhooks.py         # handler de webhook + funções auxiliares
+├── mcp_server.py            # MCP Server para integração com Claude Code
 ├── Dockerfile
 ├── docker-compose.yml
 ├── pyproject.toml
@@ -450,8 +422,8 @@ nome, cidade, produto de interesse, orçamento estimado, tipo de projeto, e-mail
 
 1. Faça upload de um PDF em **Configurações → Documentos**
 2. O sistema extrai o texto de cada página — páginas com menos de 8 palavras (ex: títulos ou capas) são descartadas automaticamente para evitar ruído no retrieval
-3. Cada chunk é vetorizado com o modelo `paraphrase-multilingual-MiniLM-L12-v2` (fastembed, roda localmente)
-4. A cada mensagem recebida, é feita busca semântica por cosseno: apenas chunks com similaridade ≥ 0.10 são incluídos no contexto — chunks irrelevantes são suprimidos mesmo que sejam os "menos piores"
+3. Cada chunk é vetorizado com o modelo `paraphrase-multilingual-MiniLM-L12-v2` (fastembed, roda localmente) e o vetor é serializado como JSON e armazenado no SQLite
+4. A cada mensagem recebida, a query do usuário é embeddada e comparada contra todos os chunks via similaridade de cosseno: apenas chunks com score ≥ 0.10 são incluídos no contexto — chunks irrelevantes são suprimidos mesmo que sejam os "menos piores"
 5. Fallback por sobreposição de palavras-chave quando o documento ainda não possui embeddings
 6. Se o lead pedir "catálogo", "folheto", "PDF" ou "material", o agente inclui `[ENVIAR_CATALOGO]` na resposta e o arquivo é enviado automaticamente via WhatsApp
 7. Apenas um documento fica ativo por vez — novo upload desativa o anterior
