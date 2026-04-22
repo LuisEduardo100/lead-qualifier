@@ -244,6 +244,141 @@ async def test_webhook_updates_lead_status_to_hot(client, db_session, monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_webhook_pdf_document_downloaded_and_extracted(client, db_session, monkeypatch):
+    """PDF sent by client is downloaded and text extracted into the message."""
+    import backend.agents.qualification as qa_mod
+    import backend.agents.response as ra_mod
+    import backend.routers.webhooks as wh_mod
+    from sqlalchemy import select as sa_select
+    from backend.models import Message
+
+    monkeypatch.setattr(qa_mod, "qualify", AsyncMock(return_value={
+        "status": "warm", "next_question": "Qual produto?", "collected": {},
+    }))
+    monkeypatch.setattr(ra_mod, "generate_response", AsyncMock(return_value="Recebi a lista, vou analisar!"))
+    monkeypatch.setattr(wh_mod, "send_text_human", AsyncMock())
+    monkeypatch.setattr(wh_mod, "get_active_document", AsyncMock(return_value=None))
+
+    download_mock = AsyncMock(return_value="FAKEPDFB64==")
+    monkeypatch.setattr(wh_mod, "download_media_base64", download_mock)
+
+    extract_mock = AsyncMock(return_value="Produto A: R$ 100\nProduto B: R$ 200")
+    monkeypatch.setattr(wh_mod, "_extract_pdf_text", extract_mock)
+
+    channel = Channel(name="WH PDF", instance_name="wh-pdf-test", status="connected")
+    db_session.add(channel)
+    await db_session.commit()
+
+    payload = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {"fromMe": False, "remoteJid": "5511777777771@s.whatsapp.net"},
+            "pushName": "PDF User",
+            "message": {"documentMessage": {
+                "fileName": "lista_produtos.pdf",
+                "mimetype": "application/pdf",
+                "caption": "Minha lista de pedidos",
+            }},
+        },
+    }
+    r = await client.post("/webhook/wh-pdf-test", json=payload)
+    assert r.json()["ok"] is True
+
+    download_mock.assert_called_once()
+    extract_mock.assert_called_once_with("FAKEPDFB64==")
+
+    msgs = (await db_session.execute(
+        sa_select(Message).where(Message.media_type == "document")
+    )).scalars().all()
+    assert len(msgs) == 1
+    assert "Produto A" in msgs[0].content
+    assert "lista_produtos.pdf" in msgs[0].content
+
+
+@pytest.mark.asyncio
+async def test_webhook_non_pdf_document_no_download(client, db_session, monkeypatch):
+    """Non-PDF documents (Word, Excel) are acknowledged without download attempt."""
+    import backend.agents.qualification as qa_mod
+    import backend.agents.response as ra_mod
+    import backend.routers.webhooks as wh_mod
+
+    monkeypatch.setattr(qa_mod, "qualify", AsyncMock(return_value={
+        "status": "warm", "next_question": None, "collected": {},
+    }))
+    monkeypatch.setattr(ra_mod, "generate_response", AsyncMock(return_value="Recebi o documento."))
+    monkeypatch.setattr(wh_mod, "send_text_human", AsyncMock())
+    monkeypatch.setattr(wh_mod, "get_active_document", AsyncMock(return_value=None))
+
+    download_mock = AsyncMock(return_value=None)
+    monkeypatch.setattr(wh_mod, "download_media_base64", download_mock)
+
+    channel = Channel(name="WH DOCX", instance_name="wh-docx-test", status="connected")
+    db_session.add(channel)
+    await db_session.commit()
+
+    payload = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {"fromMe": False, "remoteJid": "5511777777772@s.whatsapp.net"},
+            "pushName": "Docx User",
+            "message": {"documentMessage": {
+                "fileName": "proposta.docx",
+                "mimetype": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            }},
+        },
+    }
+    r = await client.post("/webhook/wh-docx-test", json=payload)
+    assert r.json()["ok"] is True
+    download_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_webhook_catalog_not_marked_until_sent(client, db_session, monkeypatch):
+    """CATÁLOGO_ENVIADO marker is NOT written by the request handler — only by the background task."""
+    import backend.agents.qualification as qa_mod
+    import backend.agents.response as ra_mod
+    import backend.routers.webhooks as wh_mod
+    from sqlalchemy import select as sa_select
+
+    monkeypatch.setattr(qa_mod, "qualify", AsyncMock(return_value={
+        "status": "warm", "next_question": None, "collected": {},
+    }))
+    monkeypatch.setattr(ra_mod, "generate_response", AsyncMock(return_value="Estou enviando o catálogo!"))
+    monkeypatch.setattr(wh_mod, "send_text_human", AsyncMock())
+
+    from backend.models import AgentDocument
+    fake_doc = AgentDocument(
+        filename="catalogo.pdf", file_path="/fake/catalogo.pdf",
+        original_size=1024, page_count=3, is_active=True,
+    )
+    monkeypatch.setattr(wh_mod, "get_active_document", AsyncMock(return_value=fake_doc))
+    monkeypatch.setattr(wh_mod, "search_relevant_chunks", AsyncMock(return_value=[]))
+
+    catalog_task_mock = AsyncMock()
+    monkeypatch.setattr(wh_mod, "_send_catalog_task", catalog_task_mock)
+
+    channel = Channel(name="WH Cat", instance_name="wh-cat-test", status="connected")
+    db_session.add(channel)
+    await db_session.commit()
+
+    payload = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {"fromMe": False, "remoteJid": "5511777777773@s.whatsapp.net"},
+            "pushName": "Cat User",
+            "message": {"conversation": "Pode me mandar o catálogo?"},
+        },
+    }
+    r = await client.post("/webhook/wh-cat-test", json=payload)
+    assert r.json()["ok"] is True
+
+    msgs = (await db_session.execute(
+        sa_select(Message).where(Message.content == "[CATÁLOGO_ENVIADO]")
+    )).scalars().all()
+    assert len(msgs) == 0, "CATÁLOGO_ENVIADO must not be committed by the request handler"
+
+
+@pytest.mark.asyncio
 async def test_webhook_qualify_error_returns_ok(client, db_session, monkeypatch):
     import backend.agents.qualification as qa_mod
     import backend.routers.webhooks as wh_mod

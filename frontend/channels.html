@@ -283,7 +283,8 @@ async function load() {
         <!-- Actions -->
         <div class="flex flex-col items-end gap-2 flex-shrink-0">
           ${!connected && !isBusiness ? `<button onclick="openQR(${c.id})" class="bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-gray-800 whitespace-nowrap">Conectar</button>` : ''}
-          <button onclick="removeChannel(${c.id})" class="text-gray-300 hover:text-red-500 p-1" title="Remover canal">
+          ${connected && !isBusiness ? `<button onclick="disconnectChannel(${c.id})" class="border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 text-xs px-3 py-1.5 rounded-lg whitespace-nowrap" title="Desconecta o WhatsApp sem apagar leads ou métricas">Desconectar</button>` : ''}
+          <button onclick="removeChannel(${c.id})" class="text-gray-300 hover:text-red-500 p-1" title="Remover canal e todos os dados">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -360,8 +361,18 @@ function closeQR() {
   document.getElementById('modal-qr').classList.add('hidden');
 }
 
+async function disconnectChannel(id) {
+  if (!confirm('Desconectar o WhatsApp deste canal?\n\nLeads, mensagens e métricas serão preservados. Você poderá reconectar depois usando o botão "Conectar".')) return;
+  const res = await apiFetch(`/api/channels/${id}/disconnect`, { method: 'POST' });
+  if (res && res.ok) {
+    load();
+  } else {
+    alert('Erro ao desconectar canal.');
+  }
+}
+
 async function removeChannel(id) {
-  if (!confirm('Remover canal?')) return;
+  if (!confirm('Remover canal e TODOS os dados (leads, mensagens, métricas)?') ) return;
   await apiDelete(`/api/channels/${id}`);
   load();
 }

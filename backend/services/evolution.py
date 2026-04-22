@@ -172,6 +172,19 @@ async def fetch_instance_info(instance_name: str) -> dict:
         return {}
 
 
+async def logout_instance(instance_name: str):
+    """Log out from WhatsApp without deleting the instance (preserves leads/metrics)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.delete(f"{BASE}/instance/logout/{instance_name}", headers=HEADERS)
+            if not r.is_success:
+                logger.warning(f"logout_instance {r.status_code}: {r.text}")
+    except Exception as e:
+        logger.warning(f"logout_instance failed (instance may already be disconnected): {e}")
+
+
 async def delete_instance(instance_name: str):
     async with httpx.AsyncClient() as client:
         await client.delete(f"{BASE}/instance/delete/{instance_name}", headers=HEADERS)

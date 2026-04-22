@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     email_from_name: str = "Consultor Comercial"
     database_url: str = "sqlite+aiosqlite:///./data/leads.db"
+    public_url: str = "http://api:8000"
 
 @lru_cache
 def get_settings() -> Settings:

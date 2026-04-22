@@ -1,11 +1,12 @@
 import io
+import asyncio
 import base64 as b64mod
 import logging
 from fastapi import APIRouter, Request, Depends, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, UTC
-from backend.database import get_db
+from backend.database import get_db, SessionLocal
 from backend.models import Channel, Lead, Message, AgentConfig, LeadStatus, MessageDirection
 from backend.agents import qualification as qa, response as ra
 from backend.services.evolution import send_text_human, download_media_base64, send_document
@@ -47,11 +48,11 @@ async def _transcribe_audio(audio_b64: str) -> str:
     return text
 
 
-async def _describe_image(image_b64: str, caption: str = "") -> str:
+async def _describe_image(image_b64: str, caption: str = "", mime: str = "image/jpeg") -> str:
     from groq import AsyncGroq
     client = AsyncGroq(api_key=settings.groq_api_key)
     content = [
-        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
+        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
         {"type": "text", "text": "Descreva em 1 frase o que está nesta imagem, em português."},
     ]
     r = await client.chat.completions.create(
@@ -61,6 +62,24 @@ async def _describe_image(image_b64: str, caption: str = "") -> str:
     )
     desc = r.choices[0].message.content.strip()
     return f"[Imagem: {desc}]" + (f" {caption}" if caption else "")
+
+
+async def _extract_pdf_text(pdf_b64: str) -> str:
+    """Extract text from a base64-encoded PDF (runs blocking pypdf in thread pool)."""
+    loop = asyncio.get_running_loop()
+
+    def _sync_extract(b64_data: str) -> str:
+        from pypdf import PdfReader
+        pdf_bytes = b64mod.b64decode(b64_data)
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        pages = []
+        for page in reader.pages[:10]:
+            text = (page.extract_text() or "").strip()
+            if text and len(text.split()) >= 4:
+                pages.append(text)
+        return "\n\n".join(pages)[:4000]
+
+    return await loop.run_in_executor(None, _sync_extract, pdf_b64)
 
 
 async def _extract_message(message_obj: dict, instance_name: str, key: dict) -> tuple[str, str | None, str | None]:
@@ -84,7 +103,6 @@ async def _extract_message(message_obj: dict, instance_name: str, key: dict) -> 
                 return transcript, "audio", None
             except Exception as e:
                 logger.error(f"Whisper transcription failed: {e}")
-        # Download or transcription failed — return empty so the webhook sends a friendly fallback
         return "", "audio", None
 
     # Image
@@ -92,10 +110,11 @@ async def _extract_message(message_obj: dict, instance_name: str, key: dict) -> 
         img = message_obj["imageMessage"]
         caption = img.get("caption", "")
         thumbnail = img.get("jpegThumbnail", "")
+        mime = img.get("mimetype", "") or "image/jpeg"
         full_b64 = await download_media_base64(instance_name, key, message_obj)
         if full_b64:
             try:
-                desc = await _describe_image(full_b64, caption)
+                desc = await _describe_image(full_b64, caption, mime)
                 return desc, "image", thumbnail or None
             except Exception as e:
                 logger.error(f"Image vision failed: {e}")
@@ -109,11 +128,46 @@ async def _extract_message(message_obj: dict, instance_name: str, key: dict) -> 
         )
         filename = doc.get("fileName") or doc.get("title") or "documento"
         caption = doc.get("caption", "")
-        content_text = f"[Documento: {filename}]" + (f" {caption}" if caption else "")
-        return content_text, "document", None
+        mime = doc.get("mimetype", "")
+
+        header = f"[Documento: {filename}]" + (f" {caption}" if caption else "")
+
+        if "pdf" in mime.lower() or filename.lower().endswith(".pdf"):
+            pdf_b64 = await download_media_base64(instance_name, key, message_obj)
+            if pdf_b64:
+                try:
+                    extracted = await _extract_pdf_text(pdf_b64)
+                    if extracted:
+                        return f"{header}\n\nConteúdo do documento:\n{extracted}", "document", None
+                except Exception as e:
+                    logger.error(f"PDF extraction from client failed: {e}")
+
+        return header, "document", None
 
     # Sticker / reaction / other — skip
     return "", None, None
+
+
+async def _send_catalog_task(
+    instance_name: str,
+    reply_jid: str,
+    lead_id: int,
+    file_path: str,
+    filename: str,
+):
+    """Send catalog PDF and mark as delivered only after successful send."""
+    try:
+        await send_document(instance_name, reply_jid, file_path, filename)
+        async with SessionLocal() as db:
+            db.add(Message(
+                lead_id=lead_id,
+                direction=MessageDirection.outbound,
+                content="[CATÁLOGO_ENVIADO]",
+            ))
+            await db.commit()
+        logger.info(f"[webhook] Catalog delivered and marked for lead {lead_id}")
+    except Exception as e:
+        logger.error(f"[webhook] Catalog delivery failed for lead {lead_id}: {e}")
 
 
 @router.post("/{instance_name}")
@@ -276,16 +330,15 @@ async def receive_webhook(
         background_tasks.add_task(send_text_human, instance_name, reply_jid, reply)
 
         if send_catalog and active_doc:
-            db.add(Message(lead_id=lead.id, direction=MessageDirection.outbound, content="[CATÁLOGO_ENVIADO]"))
-            await db.commit()
             background_tasks.add_task(
-                send_document,
+                _send_catalog_task,
                 instance_name,
                 reply_jid,
+                lead.id,
                 active_doc.file_path,
                 active_doc.filename,
             )
-            logger.info(f"[webhook] Scheduling catalog send: {active_doc.filename}")
+            logger.info(f"[webhook] Catalog send queued: {active_doc.filename}")
     except Exception as e:
         logger.error(f"Erro ao gerar/enviar resposta: {e}")
         await db.commit()

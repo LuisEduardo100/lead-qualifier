@@ -124,6 +124,64 @@ async def test_qrcode_wa_business_raises_400(client, auth_headers, db_session):
 
 
 @pytest.mark.asyncio
+async def test_disconnect_channel_success(client, auth_headers, db_session, monkeypatch):
+    from backend.services import evolution
+
+    monkeypatch.setattr(evolution, "logout_instance", AsyncMock())
+
+    channel = Channel(name="Disc Chan", instance_name="disc-chan-test", status="connected")
+    db_session.add(channel)
+    await db_session.commit()
+
+    r = await client.post(f"/api/channels/{channel.id}/disconnect", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json()["status"] == "disconnected"
+
+    await db_session.refresh(channel)
+    assert channel.status == "disconnected"
+
+
+@pytest.mark.asyncio
+async def test_disconnect_channel_preserves_leads(client, auth_headers, db_session, monkeypatch):
+    from backend.services import evolution
+    from sqlalchemy import select as sa_select
+
+    monkeypatch.setattr(evolution, "logout_instance", AsyncMock())
+
+    channel = Channel(name="Pres Chan", instance_name="pres-chan-test", status="connected")
+    db_session.add(channel)
+    await db_session.flush()
+    db_session.add(Lead(channel_id=channel.id, phone="5511900099002", status="hot"))
+    await db_session.commit()
+
+    await client.post(f"/api/channels/{channel.id}/disconnect", headers=auth_headers)
+
+    leads = (await db_session.execute(
+        sa_select(Lead).where(Lead.channel_id == channel.id)
+    )).scalars().all()
+    assert len(leads) == 1
+
+
+@pytest.mark.asyncio
+async def test_disconnect_wa_business_raises_400(client, auth_headers, db_session):
+    channel = Channel(
+        name="WA Biz Disc", instance_name="wa-biz-disc-test",
+        channel_type="whatsapp-business", status="connected",
+    )
+    db_session.add(channel)
+    await db_session.commit()
+
+    r = await client.post(f"/api/channels/{channel.id}/disconnect", headers=auth_headers)
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_disconnect_channel_not_found(client, auth_headers):
+    r = await client.post("/api/channels/99999/disconnect", headers=auth_headers)
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_delete_channel_cascades_leads(client, auth_headers, db_session, monkeypatch):
     from backend.services import evolution
     from sqlalchemy import select

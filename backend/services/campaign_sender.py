@@ -38,7 +38,7 @@ async def run_campaign_with_session(campaign_id: int, db: AsyncSession) -> None:
 
     for recipient in recipients:
         try:
-            await evolution.send_text(channel.instance_name, recipient.phone, campaign.message)
+            await evolution.send_text_human(channel.instance_name, recipient.phone, campaign.message)
             recipient.delivery_status = CampaignRecipientStatus.sent
             recipient.sent_at = datetime.now(UTC)
             campaign.sent_count += 1

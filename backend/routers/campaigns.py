@@ -23,11 +23,13 @@ class CampaignCreate(BaseModel):
     filter_status: Optional[str] = None
 
 
-def _recipient_leads_query(filter_status: str | None):
-    """Selects one Lead per distinct phone (most recently created), filtered by status."""
+def _recipient_leads_query(filter_status: str | None, channel_id: int | None = None):
+    """Selects one Lead per distinct phone (most recently created), filtered by status and channel."""
     subq = select(Lead.phone, func.max(Lead.id).label("lead_id")).group_by(Lead.phone)
     if filter_status:
         subq = subq.where(Lead.status == filter_status)
+    if channel_id:
+        subq = subq.where(Lead.channel_id == channel_id)
     subq = subq.subquery()
     return select(Lead).join(subq, Lead.id == subq.c.lead_id)
 
@@ -60,7 +62,7 @@ async def preview_recipients(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    q = _recipient_leads_query(body.get("filter_status"))
+    q = _recipient_leads_query(body.get("filter_status"), body.get("channel_id"))
     count = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
     return {"count": count}
 
@@ -79,7 +81,7 @@ async def create_campaign(
     if channel.channel_type != "whatsapp-business":
         raise HTTPException(400, "Campanhas so podem ser enviadas por canais WhatsApp Business (API oficial)")
 
-    leads = (await db.execute(_recipient_leads_query(body.filter_status))).scalars().all()
+    leads = (await db.execute(_recipient_leads_query(body.filter_status, body.channel_id))).scalars().all()
     if not leads:
         raise HTTPException(400, "Nenhum lead encontrado com os filtros selecionados")
 

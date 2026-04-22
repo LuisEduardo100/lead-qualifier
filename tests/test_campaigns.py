@@ -96,10 +96,7 @@ async def test_campaign_sender_marks_sent(db_session, monkeypatch):
     from backend.services import evolution, campaign_sender
     from backend.models import CampaignRecipientStatus, CampaignStatus
 
-    async def fake_send(instance_name, phone, text):
-        return {"key": {"id": "msg1"}}
-
-    monkeypatch.setattr(evolution, "send_text", fake_send)
+    monkeypatch.setattr(evolution, "send_text_human", AsyncMock())
     monkeypatch.setattr(campaign_sender.asyncio, "sleep", AsyncMock())
 
     channel = Channel(name="WB", instance_name="wb", channel_type="whatsapp-business", status="connected")
@@ -132,10 +129,7 @@ async def test_campaign_sender_marks_failed_on_error(db_session, monkeypatch):
     from backend.services import evolution, campaign_sender
     from backend.models import CampaignRecipientStatus, CampaignStatus
 
-    async def fake_send_error(instance_name, phone, text):
-        raise Exception("Evolution API 429")
-
-    monkeypatch.setattr(evolution, "send_text", fake_send_error)
+    monkeypatch.setattr(evolution, "send_text_human", AsyncMock(side_effect=Exception("Evolution API 429")))
     monkeypatch.setattr(campaign_sender.asyncio, "sleep", AsyncMock())
 
     channel = Channel(name="WB2", instance_name="wb2", channel_type="whatsapp-business", status="connected")
@@ -168,6 +162,24 @@ async def test_preview_empty_returns_zero(client, auth_headers):
     r = await client.post("/api/campaigns/preview", json={"filter_status": "hot"}, headers=auth_headers)
     assert r.status_code == 200
     assert r.json()["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_preview_filters_by_channel(client, auth_headers, db_session):
+    c1 = Channel(name="Ch A", instance_name="ch-a", status="connected")
+    c2 = Channel(name="Ch B", instance_name="ch-b", status="connected")
+    db_session.add(c1)
+    db_session.add(c2)
+    await db_session.flush()
+    db_session.add(Lead(channel_id=c1.id, phone="5511900001001", status="hot"))
+    db_session.add(Lead(channel_id=c2.id, phone="5511900001002", status="hot"))
+    await db_session.commit()
+
+    r = await client.post("/api/campaigns/preview", json={
+        "filter_status": "hot", "channel_id": c1.id,
+    }, headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json()["count"] == 1
 
 
 @pytest.mark.asyncio

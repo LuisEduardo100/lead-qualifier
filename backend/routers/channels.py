@@ -8,15 +8,15 @@ from backend.database import get_db
 from backend.models import Channel, Lead, Message, FollowUpLog
 from backend.auth import get_current_user
 from backend.services import evolution
+from backend.config import get_settings
 from backend import qr_store
-import os
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
+settings = get_settings()
 
 
 def _webhook_url(instance_name: str) -> str:
-    base = os.getenv("PUBLIC_URL", "http://api:8000")
-    return f"{base}/webhook/{instance_name}"
+    return f"{settings.public_url}/webhook/{instance_name}"
 
 
 class ChannelCreate(BaseModel):
@@ -151,6 +151,21 @@ async def get_qrcode(channel_id: int, db: AsyncSession = Depends(get_db), _=Depe
     if not b64:
         raise HTTPException(408, "QR Code nao disponivel")
     return {"base64": b64}
+
+
+@router.post("/{channel_id}/disconnect")
+async def disconnect_channel(channel_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    channel = (await db.execute(
+        select(Channel).where(Channel.id == channel_id)
+    )).scalar_one_or_none()
+    if not channel:
+        raise HTTPException(404, "Canal nao encontrado")
+    if channel.channel_type == "whatsapp-business":
+        raise HTTPException(400, "Canais WA Business nao podem ser desconectados manualmente")
+    await evolution.logout_instance(channel.instance_name)
+    channel.status = "disconnected"
+    await db.commit()
+    return {"ok": True, "status": "disconnected"}
 
 
 @router.get("/{channel_id}/status")

@@ -57,7 +57,11 @@ async def _run_followups():
             ]
 
             try:
-                context_msg = await generate_followup_context(history, attempt)
+                try:
+                    context_msg = await generate_followup_context(history, attempt)
+                except Exception as ai_err:
+                    logger.warning(f"AI follow-up failed for lead {lead.id}, using template: {ai_err}")
+                    context_msg = _get_config(configs, f"followup_template_{attempt}", "")
                 await send_followup_email(
                     to_email=lead.email,
                     lead_name=lead.name,
