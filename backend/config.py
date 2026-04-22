@@ -1,7 +1,10 @@
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from functools import lru_cache
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(env_file=".env")
+
     groq_api_key: str = ""
     secret_key: str = "change-this"
     admin_username: str = "admin"
@@ -14,9 +17,6 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     email_from_name: str = "Consultor Comercial"
     database_url: str = "sqlite+aiosqlite:///./data/leads.db"
-
-    class Config:
-        env_file = ".env"
 
 @lru_cache
 def get_settings() -> Settings:

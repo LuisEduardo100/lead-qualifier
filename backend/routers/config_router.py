@@ -17,6 +17,9 @@ DEFAULTS = {
     "featured_products": '[{"name":"Produto A","description":"Descrição breve"},{"name":"Produto B","description":"Descrição breve"}]',
     "followup_template_1": "Olá! Passando para saber se ainda posso ajudá-lo com o que conversamos.",
     "followup_template_2": "Última tentativa de contato — ainda temos ótimas condições para você.",
+    "max_tokens": "40",
+    "temperature": "0.7",
+    "brevity_rule": "Responda em no máximo 1-2 frases curtas. Escreva como uma pessoa no WhatsApp, nunca como um e-mail.",
 }
 
 

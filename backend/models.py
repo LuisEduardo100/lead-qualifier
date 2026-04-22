@@ -79,6 +79,8 @@ class Message(Base):
     lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id"))
     direction: Mapped[str] = mapped_column(SAEnum(MessageDirection))
     content: Mapped[str] = mapped_column(Text)
+    media_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # image | audio | document
+    media_url: Mapped[str | None] = mapped_column(Text, nullable=True)  # thumbnail base64 for images
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     lead: Mapped["Lead"] = relationship(back_populates="messages")
 

@@ -66,6 +66,9 @@
 <script src="/static/js/api.js"></script>
 <script>
 if (!localStorage.getItem('token')) location.href = '/';
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 const id = new URLSearchParams(location.search).get('id');
 let lead = null;
 
@@ -95,11 +98,24 @@ async function load() {
   const atBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 80;
   msgs.innerHTML = lead.messages.map(m => {
     const isIn = m.direction === 'inbound';
+    const bubble = isIn ? 'bg-gray-100 text-gray-800 rounded-tl-sm' : 'bg-gray-900 text-white rounded-tr-sm';
+    const ts = `<p class="text-xs mt-1 text-gray-400">${timeAgo(m.at)}</p>`;
+    const safe = escHtml(m.content);
+
+    let body;
+    if (m.media_type === 'image') {
+      const img = m.media_url ? `<img src="data:image/jpeg;base64,${escHtml(m.media_url)}" class="rounded-lg max-w-full mb-1" style="max-height:180px" alt="imagem">` : '';
+      body = img + `<p class="text-xs italic opacity-70">${safe}</p>`;
+    } else if (m.media_type === 'audio') {
+      body = `<p class="text-xs">🎤 <span class="italic">${safe}</span></p>`;
+    } else if (m.media_type === 'document') {
+      body = `<p class="text-xs">📄 ${safe}</p>`;
+    } else {
+      body = `<p>${safe}</p>`;
+    }
+
     return `<div class="flex ${isIn ? 'justify-start' : 'justify-end'}">
-      <div class="max-w-xs px-4 py-2.5 rounded-2xl text-sm ${isIn ? 'bg-gray-100 text-gray-800 rounded-tl-sm' : 'bg-gray-900 text-white rounded-tr-sm'}">
-        <p>${m.content}</p>
-        <p class="text-xs mt-1 text-gray-400">${timeAgo(m.at)}</p>
-      </div>
+      <div class="max-w-xs px-4 py-2.5 rounded-2xl text-sm ${bubble}">${body}${ts}</div>
     </div>`;
   }).join('');
   const newCount = msgs.children.length;

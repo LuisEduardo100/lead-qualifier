@@ -10,6 +10,7 @@ venv/
 
 .env
 .env.*
+!.env.example
 
 data/
 *.db
@@ -18,3 +19,7 @@ data/
 .DS_Store
 
 .worktrees/
+
+docs/
+
+.claude/settings.local.json

@@ -226,7 +226,7 @@ async def test_launch_transitions_to_running(client, auth_headers, db_session, m
 
     monkeypatch.setattr(campaign_sender, "run_campaign", AsyncMock())
 
-    channel = Channel(name="WB5", instance_name="wb5", status="connected")
+    channel = Channel(name="WB5", instance_name="wb5", channel_type="whatsapp-business", status="connected")
     db_session.add(channel)
     await db_session.flush()
     db_session.add(Lead(channel_id=channel.id, phone="5511900000020", status="warm"))
@@ -248,7 +248,7 @@ async def test_launch_already_running_raises_400(client, auth_headers, db_sessio
 
     monkeypatch.setattr(campaign_sender, "run_campaign", AsyncMock())
 
-    channel = Channel(name="WB6", instance_name="wb6", status="connected")
+    channel = Channel(name="WB6", instance_name="wb6", channel_type="whatsapp-business", status="connected")
     db_session.add(channel)
     await db_session.flush()
     db_session.add(Lead(channel_id=channel.id, phone="5511900000030", status="hot"))
@@ -266,7 +266,7 @@ async def test_launch_already_running_raises_400(client, auth_headers, db_sessio
 
 @pytest.mark.asyncio
 async def test_delete_draft_campaign(client, auth_headers, db_session):
-    channel = Channel(name="WB7", instance_name="wb7", status="connected")
+    channel = Channel(name="WB7", instance_name="wb7", channel_type="whatsapp-business", status="connected")
     db_session.add(channel)
     await db_session.flush()
     db_session.add(Lead(channel_id=channel.id, phone="5511900000040", status="hot"))

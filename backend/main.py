@@ -22,10 +22,18 @@ async def lifespan(app: FastAPI):
     await init_db()
     await migrate_db()
     async with engine.begin() as conn:
-        try:
-            await conn.execute(text("ALTER TABLE leads ADD COLUMN agent_paused INTEGER DEFAULT 0"))
-        except Exception:
-            pass
+        for col, definition in [
+            ("agent_paused", "INTEGER DEFAULT 0"),
+            ("media_type", "TEXT"),
+            ("media_url", "TEXT"),
+        ]:
+            try:
+                if col == "agent_paused":
+                    await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {col} {definition}"))
+                else:
+                    await conn.execute(text(f"ALTER TABLE messages ADD COLUMN {col} {definition}"))
+            except Exception:
+                pass
     async with SessionLocal() as db:
         existing = (await db.execute(
             select(AdminUser).where(AdminUser.username == settings.admin_username)

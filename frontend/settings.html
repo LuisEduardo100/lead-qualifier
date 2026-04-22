@@ -56,6 +56,36 @@
         <label class="block text-xs font-medium text-gray-500 mb-1">Prompt / tom do agente</label>
         <textarea name="agent_prompt" rows="4" class="field w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none" placeholder="Instruções para o comportamento do agente..."></textarea>
       </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-500 mb-1">Regra de brevidade <span class="text-gray-400 font-normal">(sempre aplicada após o prompt — edite para controlar o tamanho das respostas)</span></label>
+        <textarea name="brevity_rule" rows="2" class="field w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-4 pt-2">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">
+            Tamanho máximo da resposta
+            <span class="text-gray-400 font-normal">(tokens — 30 = 1 frase, 60 = 2-3 frases)</span>
+          </label>
+          <div class="flex items-center gap-3">
+            <input type="range" name="max_tokens" min="20" max="200" step="5"
+              class="field flex-1 accent-gray-900"
+              oninput="this.nextElementSibling.textContent=this.value">
+            <span class="text-sm font-medium text-gray-700 w-8 text-right">40</span>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">
+            Criatividade / variação
+            <span class="text-gray-400 font-normal">(0 = previsível, 1 = criativo)</span>
+          </label>
+          <div class="flex items-center gap-3">
+            <input type="range" name="temperature" min="0" max="1" step="0.1"
+              class="field flex-1 accent-gray-900"
+              oninput="this.nextElementSibling.textContent=parseFloat(this.value).toFixed(1)">
+            <span class="text-sm font-medium text-gray-700 w-8 text-right">0.7</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="bg-white rounded-xl border border-gray-100 p-6 space-y-4">
@@ -80,7 +110,16 @@ if (!localStorage.getItem('token')) location.href = '/';
 async function load() {
   const cfg = await apiGet('/api/config');
   document.querySelectorAll('.field').forEach(el => {
-    if (cfg[el.name] !== undefined) el.value = cfg[el.name];
+    if (cfg[el.name] !== undefined) {
+      el.value = cfg[el.name];
+      // atualiza o span de display para sliders
+      if (el.type === 'range') {
+        const span = el.nextElementSibling;
+        if (span) span.textContent = el.name === 'temperature'
+          ? parseFloat(el.value).toFixed(1)
+          : el.value;
+      }
+    }
   });
 }
 

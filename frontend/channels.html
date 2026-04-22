@@ -43,22 +43,105 @@
 </div>
 
 <!-- Modal Add -->
-<div id="modal-add" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-  <div class="bg-white rounded-2xl p-8 w-full max-w-sm">
-    <h2 class="font-bold text-lg text-gray-900 mb-6">Novo canal</h2>
-    <input type="text" id="new-channel-name" placeholder="Nome do canal (ex: Vendas)" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gray-900">
-    <div class="flex gap-2 mb-4">
-      <button id="btn-type-baileys" onclick="setChannelType('baileys')" class="flex-1 border-2 border-gray-900 bg-gray-900 text-white text-sm py-2 rounded-lg font-medium">Baileys (QR Code)</button>
-      <button id="btn-type-business" onclick="setChannelType('whatsapp-business')" class="flex-1 border-2 border-gray-200 text-gray-600 text-sm py-2 rounded-lg">WA Business (Token)</button>
-    </div>
-    <div id="wa-business-fields" class="hidden space-y-3 mb-4">
-      <input type="text" id="wa-token" placeholder="Token de acesso permanente" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
-      <input type="text" id="wa-phone-id" placeholder="Phone Number ID" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
-      <input type="text" id="wa-biz-id" placeholder="Business Account ID" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
-    </div>
-    <div class="flex gap-3">
-      <button onclick="document.getElementById('modal-add').classList.add('hidden')" class="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-lg text-sm">Cancelar</button>
-      <button onclick="addChannel()" class="flex-1 bg-gray-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800">Criar</button>
+<div id="modal-add" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div class="p-8">
+      <h2 class="font-bold text-lg text-gray-900 mb-6">Novo canal</h2>
+      <input type="text" id="new-channel-name" placeholder="Nome do canal (ex: Vendas)" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gray-900">
+      <div class="flex gap-2 mb-4">
+        <button id="btn-type-baileys" onclick="setChannelType('baileys')" class="flex-1 border-2 border-gray-900 bg-gray-900 text-white text-sm py-2 rounded-lg font-medium">Baileys (QR Code)</button>
+        <button id="btn-type-business" onclick="setChannelType('whatsapp-business')" class="flex-1 border-2 border-gray-200 text-gray-600 text-sm py-2 rounded-lg">WA Business (Token)</button>
+      </div>
+
+      <!-- Baileys info -->
+      <div id="baileys-info" class="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm">
+        <p class="font-semibold text-amber-800 mb-1">Para receber leads via QR Code</p>
+        <p class="text-amber-700 text-xs">Ideal para atendimento e qualificação automática. <strong>Não use este canal para disparos em massa</strong> — risco de ban do número.</p>
+      </div>
+
+      <!-- WA Business fields + guide -->
+      <div id="wa-business-fields" class="hidden mb-4">
+
+        <!-- Why section -->
+        <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+          <p class="font-semibold text-green-800 text-sm mb-1">Por que usar WhatsApp Business API?</p>
+          <ul class="text-green-700 text-xs space-y-1">
+            <li>✅ Canal oficial Meta — sem risco de ban</li>
+            <li>✅ Único permitido para disparos em massa</li>
+            <li>✅ O número de atendimento (Baileys) fica protegido</li>
+          </ul>
+        </div>
+
+        <!-- Step-by-step guide -->
+        <div class="border border-gray-100 rounded-xl overflow-hidden mb-4">
+          <button onclick="toggleGuide()" class="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 transition">
+            <span>📋 Como obter as credenciais (passo a passo)</span>
+            <span id="guide-arrow" class="text-gray-400 transition-transform">▼</span>
+          </button>
+          <div id="guide-content" class="hidden px-4 py-4 text-xs text-gray-600 space-y-5 bg-white">
+
+            <div>
+              <p class="font-semibold text-gray-800 mb-2">🔑 Passo 1 — Token de Acesso Permanente</p>
+              <ol class="list-decimal list-inside space-y-1 text-gray-600 leading-relaxed">
+                <li>Acesse <strong>business.facebook.com</strong> → <strong>Configurações do Negócio</strong></li>
+                <li>No menu esquerdo, clique em <strong>Usuários do Sistema</strong></li>
+                <li>Clique em <strong>Adicionar</strong>, dê um nome (ex: "Lead Qualifier") e confirme</li>
+                <li>Selecione o usuário criado → <strong>Atribuir Ativos</strong></li>
+                <li>Atribua seu app com permissão <strong>Gerenciar app</strong> e sua conta WA com <strong>Gerenciar Contas WhatsApp Business</strong></li>
+                <li>Clique em <strong>Gerar Token</strong>, marque as permissões:<br>
+                  <span class="font-mono bg-gray-100 px-1 rounded">whatsapp_business_messaging</span> e <span class="font-mono bg-gray-100 px-1 rounded">whatsapp_business_management</span>
+                </li>
+                <li><strong>Copie e guarde o token</strong> — ele não será exibido novamente</li>
+              </ol>
+            </div>
+
+            <div>
+              <p class="font-semibold text-gray-800 mb-2">📱 Passo 2 — Phone Number ID</p>
+              <ol class="list-decimal list-inside space-y-1 text-gray-600 leading-relaxed">
+                <li>Acesse <strong>business.facebook.com</strong> → <strong>Contas WhatsApp</strong></li>
+                <li>Clique em <strong>WhatsApp Manager</strong> → <strong>Números de Telefone</strong></li>
+                <li>Copie o <strong>ID numérico</strong> ao lado do seu número (não é o número em si)</li>
+              </ol>
+            </div>
+
+            <div>
+              <p class="font-semibold text-gray-800 mb-2">🏢 Passo 3 — Business Account ID</p>
+              <ol class="list-decimal list-inside space-y-1 text-gray-600 leading-relaxed">
+                <li>Na mesma tela <strong>Contas WhatsApp</strong></li>
+                <li>O <strong>WhatsApp Business Account ID</strong> aparece no topo da página ou em <strong>Configuração da API</strong></li>
+                <li>Copie o número (ex: <span class="font-mono bg-gray-100 px-1 rounded">1234567890</span>)</li>
+              </ol>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-100 rounded-lg p-3">
+              <p class="font-medium text-blue-800 text-xs mb-1">⚠️ Atenção sobre mensagens</p>
+              <p class="text-blue-700 text-xs">A API oficial só envia mensagens livres dentro da janela de 24h após o cliente falar primeiro. Para campanhas frias (sem contato anterior), é necessário usar <strong>templates aprovados pela Meta</strong>. O Lead Qualifier envia texto livre — funciona melhor para reengajamento de leads que já interagiram.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Credential inputs -->
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Token de acesso permanente</label>
+            <input type="text" id="wa-token" placeholder="EAAxxxxxxxxxxxxxxxx..." class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Phone Number ID</label>
+            <input type="text" id="wa-phone-id" placeholder="Ex: 123456789012345" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">Business Account ID</label>
+            <input type="text" id="wa-biz-id" placeholder="Ex: 987654321098765" class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="document.getElementById('modal-add').classList.add('hidden')" class="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-lg text-sm">Cancelar</button>
+        <button onclick="addChannel()" class="flex-1 bg-gray-900 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800">Criar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -76,16 +159,66 @@ function setChannelType(type) {
   const baileyBtn = document.getElementById('btn-type-baileys');
   const bizBtn = document.getElementById('btn-type-business');
   const waFields = document.getElementById('wa-business-fields');
+  const baileyInfo = document.getElementById('baileys-info');
   if (type === 'baileys') {
     baileyBtn.className = 'flex-1 border-2 border-gray-900 bg-gray-900 text-white text-sm py-2 rounded-lg font-medium';
     bizBtn.className = 'flex-1 border-2 border-gray-200 text-gray-600 text-sm py-2 rounded-lg';
     waFields.classList.add('hidden');
+    baileyInfo.classList.remove('hidden');
   } else {
     bizBtn.className = 'flex-1 border-2 border-gray-900 bg-gray-900 text-white text-sm py-2 rounded-lg font-medium';
     baileyBtn.className = 'flex-1 border-2 border-gray-200 text-gray-600 text-sm py-2 rounded-lg';
     waFields.classList.remove('hidden');
+    baileyInfo.classList.add('hidden');
   }
 }
+
+function toggleGuide() {
+  const content = document.getElementById('guide-content');
+  const arrow = document.getElementById('guide-arrow');
+  const isHidden = content.classList.contains('hidden');
+  content.classList.toggle('hidden', !isHidden);
+  arrow.style.transform = isHidden ? 'rotate(180deg)' : '';
+}
+
+function fmtPhone(raw) {
+  if (!raw) return null;
+  const d = raw.replace(/\D/g, '');
+  if (d.length === 13 && d.startsWith('55')) {
+    return `+55 (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`;
+  }
+  if (d.length === 12 && d.startsWith('55')) {
+    return `+55 (${d.slice(2,4)}) ${d.slice(4,8)}-${d.slice(8)}`;
+  }
+  return `+${d}`;
+}
+
+function _toUTC(iso) {
+  if (!iso) return iso;
+  return (iso.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(iso)) ? iso : iso + 'Z';
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(_toUTC(iso));
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'agora';
+  if (diffMin < 60) return `${diffMin}min atrás`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h atrás`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD < 7) return `${diffD}d atrás`;
+  return d.toLocaleDateString('pt-BR');
+}
+
+function fmtCreated(iso) {
+  if (!iso) return '—';
+  return new Date(_toUTC(iso)).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+const WA_ICON = `<svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.862L0 24l6.335-1.508A11.946 11.946 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.85 0-3.587-.5-5.088-1.375l-.363-.216-3.762.896.948-3.671-.237-.381A9.946 9.946 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>`;
 
 async function load() {
   const channels = await apiGet('/api/channels');
@@ -94,22 +227,69 @@ async function load() {
     el.innerHTML = '<div class="text-center py-12 text-gray-400"><p>Nenhum canal conectado ainda.</p><p class="text-sm mt-1">Adicione um canal para começar a receber leads.</p></div>';
     return;
   }
-  el.innerHTML = channels.map(c => `
-    <div class="bg-white rounded-xl border border-gray-100 p-5 flex items-center gap-4">
-      <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.862L0 24l6.335-1.508A11.946 11.946 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.85 0-3.587-.5-5.088-1.375l-.363-.216-3.762.896.948-3.671-.237-.381A9.946 9.946 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+  el.innerHTML = channels.map(c => {
+    const connected = c.status === 'connected';
+    const isBusiness = c.channel_type === 'whatsapp-business';
+    const phone = fmtPhone(c.phone_number);
+    const typeBadge = isBusiness
+      ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">WA Business</span>'
+      : '<span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Baileys</span>';
+    const statusBadge = connected
+      ? '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700"><span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>Conectado</span>'
+      : '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500"><span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>Desconectado</span>';
+
+    return `
+    <div class="bg-white rounded-xl border border-gray-100 p-5">
+      <div class="flex items-start gap-4">
+        <!-- Icon -->
+        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+          ${WA_ICON}
+        </div>
+
+        <!-- Main info -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-0.5">
+            <p class="font-semibold text-gray-900">${c.name}</p>
+            ${typeBadge}
+            ${statusBadge}
+          </div>
+          <p class="text-xs text-gray-400 mb-3">${c.instance}</p>
+
+          <!-- Stats grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-gray-50 rounded-lg px-3 py-2">
+              <p class="text-xs text-gray-400 mb-0.5">Número</p>
+              <p class="text-sm font-medium text-gray-800 truncate">${phone || '—'}</p>
+              ${c.profile_name ? `<p class="text-xs text-gray-400 truncate">${c.profile_name}</p>` : ''}
+            </div>
+            <div class="bg-gray-50 rounded-lg px-3 py-2">
+              <p class="text-xs text-gray-400 mb-0.5">Leads</p>
+              <p class="text-sm font-semibold text-gray-900">${c.leads_count}</p>
+            </div>
+            <div class="bg-gray-50 rounded-lg px-3 py-2">
+              <p class="text-xs text-gray-400 mb-0.5">Mensagens</p>
+              <p class="text-sm font-semibold text-gray-900">${c.messages_count}</p>
+            </div>
+            <div class="bg-gray-50 rounded-lg px-3 py-2">
+              <p class="text-xs text-gray-400 mb-0.5">Última atividade</p>
+              <p class="text-sm font-medium text-gray-800">${fmtDate(c.last_activity)}</p>
+            </div>
+          </div>
+
+          ${isBusiness && c.wa_business_id ? `<p class="text-xs text-gray-400 mt-2">Business ID: <span class="font-mono">${c.wa_business_id}</span></p>` : ''}
+          <p class="text-xs text-gray-400 mt-1">Criado em ${fmtCreated(c.created_at)}</p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-col items-end gap-2 flex-shrink-0">
+          ${!connected && !isBusiness ? `<button onclick="openQR(${c.id})" class="bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-gray-800 whitespace-nowrap">Conectar</button>` : ''}
+          <button onclick="removeChannel(${c.id})" class="text-gray-300 hover:text-red-500 p-1" title="Remover canal">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
       </div>
-      <div class="flex-1">
-        <p class="font-medium text-gray-900">${c.name}</p>
-        <p class="text-xs text-gray-400">${c.instance}</p>
-      </div>
-      <span class="px-2.5 py-1 rounded-full text-xs font-medium ${c.status === 'connected' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${c.status === 'connected' ? 'Conectado' : 'Desconectado'}</span>
-      ${c.status !== 'connected' ? `<button onclick="openQR(${c.id})" class="bg-gray-900 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-gray-800">Conectar</button>` : ''}
-      <button onclick="removeChannel(${c.id})" class="text-gray-300 hover:text-red-500 ml-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 async function addChannel() {

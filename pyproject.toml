@@ -1,7 +1,7 @@
 [project]
 name = "lead-qualifier"
 version = "0.1.0"
-description = "Add your description here"
+description = "WhatsApp lead qualifier with AI qualification and prospecting campaigns"
 requires-python = ">=3.12"
 dependencies = [
     "aiosmtplib>=5.1.0",

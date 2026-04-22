@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from backend.database import get_db
 from backend.models import Lead, Message, MessageDirection, Channel
 from backend.auth import get_current_user
-from backend.services.evolution import send_text
+from backend.services.evolution import send_text_human
 
 router = APIRouter(prefix="/api/leads", tags=["leads"])
 
@@ -60,7 +60,13 @@ async def get_lead(lead_id: int, db: AsyncSession = Depends(get_db), _=Depends(g
         "instance_name": lead.channel.instance_name if lead.channel else None,
         "agent_paused": lead.agent_paused,
         "messages": [
-            {"direction": m.direction, "content": m.content, "at": m.created_at.isoformat()}
+            {
+                "direction": m.direction,
+                "content": m.content,
+                "media_type": m.media_type,
+                "media_url": m.media_url,
+                "at": m.created_at.isoformat() + "Z",
+            }
             for m in lead.messages
         ],
     }
@@ -87,7 +93,7 @@ async def toggle_pause(lead_id: int, db: AsyncSession = Depends(get_db), _=Depen
 
 
 @router.post("/{lead_id}/send")
-async def send_message(lead_id: int, body: dict, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def send_message(lead_id: int, body: dict, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     lead = (await db.execute(
         select(Lead).where(Lead.id == lead_id).options(selectinload(Lead.channel))
     )).scalar_one_or_none()
@@ -96,7 +102,7 @@ async def send_message(lead_id: int, body: dict, db: AsyncSession = Depends(get_
     text = body.get("text", "").strip()
     if not text:
         raise HTTPException(400, "Mensagem vazia")
-    await send_text(lead.channel.instance_name, lead.phone, text)
     db.add(Message(lead_id=lead.id, direction=MessageDirection.outbound, content=text))
     await db.commit()
+    background_tasks.add_task(send_text_human, lead.channel.instance_name, lead.phone, text)
     return {"ok": True}

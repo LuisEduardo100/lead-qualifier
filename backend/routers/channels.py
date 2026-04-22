@@ -1,7 +1,7 @@
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from backend.database import get_db
@@ -30,16 +30,55 @@ class ChannelCreate(BaseModel):
 @router.get("")
 async def list_channels(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     rows = (await db.execute(select(Channel))).scalars().all()
-    return [
-        {
+
+    lead_counts = dict((await db.execute(
+        select(Lead.channel_id, func.count(Lead.id)).group_by(Lead.channel_id)
+    )).all())
+
+    msg_counts = dict((await db.execute(
+        select(Lead.channel_id, func.count(Message.id))
+        .join(Message, Message.lead_id == Lead.id)
+        .group_by(Lead.channel_id)
+    )).all())
+
+    last_activity = dict((await db.execute(
+        select(Lead.channel_id, func.max(Message.created_at))
+        .join(Message, Message.lead_id == Lead.id)
+        .group_by(Lead.channel_id)
+    )).all())
+
+    async def _evo_info(c: Channel) -> dict:
+        if c.channel_type == "baileys" and c.status == "connected":
+            try:
+                return await evolution.fetch_instance_info(c.instance_name)
+            except Exception:
+                return {}
+        return {}
+
+    evo_infos = await asyncio.gather(*[_evo_info(c) for c in rows])
+
+    result = []
+    for c, evo in zip(rows, evo_infos):
+        owner_jid = evo.get("ownerJid", "") or ""
+        phone = owner_jid.split("@")[0] if "@" in owner_jid else None
+        if c.channel_type == "whatsapp-business":
+            phone = c.wa_phone_number_id
+
+        result.append({
             "id": c.id,
             "name": c.name,
             "instance": c.instance_name,
             "status": c.status,
             "channel_type": c.channel_type,
-        }
-        for c in rows
-    ]
+            "phone_number": phone,
+            "profile_name": evo.get("profileName"),
+            "leads_count": lead_counts.get(c.id, 0),
+            "messages_count": msg_counts.get(c.id, 0),
+            "last_activity": last_activity.get(c.id).isoformat() if last_activity.get(c.id) else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "wa_business_id": c.wa_business_id if c.channel_type == "whatsapp-business" else None,
+        })
+    return result
 
 
 @router.post("")

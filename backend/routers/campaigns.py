@@ -76,6 +76,8 @@ async def create_campaign(
     )).scalar_one_or_none()
     if not channel:
         raise HTTPException(404, "Canal nao encontrado")
+    if channel.channel_type != "whatsapp-business":
+        raise HTTPException(400, "Campanhas so podem ser enviadas por canais WhatsApp Business (API oficial)")
 
     leads = (await db.execute(_recipient_leads_query(body.filter_status))).scalars().all()
     if not leads:
