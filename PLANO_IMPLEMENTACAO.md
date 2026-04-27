@@ -9,9 +9,9 @@ Implantação do Lead Qualifier em uma empresa de médio porte com 1 a 3 canais 
 ## Cronograma de Integrações
 
 ### Semana 1 — Infraestrutura e Configuração Base
-- Provisionar VPS (mín. 4 GB RAM, 2 vCPUs)
+- Provisionar VPS Hostinger (mín. 4 GB RAM, 2 vCPUs)
 - Configurar Docker Compose: Evolution API + backend FastAPI
-- Apontar domínio e configurar HTTPS (Nginx + Let's Encrypt)
+- Apontar domínio e configurar proxy reverso com certificados HTTPS automáticos (Traefik + Let's Encrypt)
 - Criar variáveis de ambiente (Groq API Key, Evolution API Key, SECRET_KEY)
 - Criar usuário admin e testar acesso ao dashboard
 
@@ -51,12 +51,11 @@ Implantação do Lead Qualifier em uma empresa de médio porte com 1 a 3 canais 
 
 ### Infraestrutura (mensal recorrente)
 
-| Item | Opção | Custo estimado |
+| Item | Configuração | Custo estimado |
 |---|---|---|
-| VPS (auto-hospedado) | Hetzner CX22 (4 GB RAM) | ~€5/mês (~R$ 30) |
-| VPS (gerenciado) | Railway Starter | ~US$ 5–20/mês |
+| VPS Hostinger | Plano KVM 2 (mín. 4GB RAM, 2 vCPUs) | ~R$ 35–45/mês |
 | Domínio + SSL | Cloudflare (SSL gratuito) | ~R$ 50/ano |
-| **Total infraestrutura** | | **~R$ 30–120/mês** |
+| **Total infraestrutura** | | **~R$ 40–50/mês** |
 
 ### APIs (variável por volume)
 
@@ -76,9 +75,9 @@ Implantação do Lead Qualifier em uma empresa de médio porte com 1 a 3 canais 
 
 | Categoria | Custo mensal |
 |---|---|
-| Infraestrutura | R$ 30–120 |
+| Infraestrutura (Hostinger) | R$ 40–50 |
 | APIs (Groq) | R$ 15–40 |
-| **Total** | **R$ 45–160/mês** |
+| **Total** | **R$ 55–90/mês** |
 
 Comparativo: um SDR júnior (salário + encargos) custa ~R$ 3.000–5.000/mês para fazer a mesma qualificação manual.
 
@@ -111,14 +110,13 @@ Comparativo: um SDR júnior (salário + encargos) custa ~R$ 3.000–5.000/mês p
 - Se a transcrição falhar, o agente solicita ao lead que repita por texto
 - Log de erros registra falhas para revisão
 
-### 4. LGPD — Proteção de Dados
-**Problema:** O sistema coleta dados pessoais (nome, telefone, e-mail, cidade) sem consentimento explícito formal.
+### 4. LGPD e Privacidade de Dados
+**Problema:** O sistema gerencia e envia dados de contato e dores dos clientes para uma IA na nuvem (Groq).
 
 **Mitigação:**
-- Incluir aviso de coleta de dados na primeira mensagem do agente
-- Banco de dados local (SQLite) — dados não saem da infraestrutura da empresa
-- Implementar rota de exclusão de dados por solicitação do lead
-- Garantir que a Groq API processa dados conforme GDPR (verificar DPA)
+- O Banco de Dados é hospedado na própria VPS da empresa, e não em uma plataforma SaaS de terceiros.
+- A API comercial da Groq tem política estrita (Enterprise-grade) de que **não utiliza os dados enviados via API para treinar seus modelos**, garantindo sigilo comercial e aderência à LGPD.
+- Inclusão de um aviso ou opt-out na saudação inicial e implementação de "Direito ao Esquecimento" (exclusão com um clique) caso o lead solicite.
 
 ### 5. Dependência de Serviço Externo (Groq)
 **Problema:** Se a Groq API ficar indisponível, o agente para de responder.
@@ -129,11 +127,11 @@ Comparativo: um SDR júnior (salário + encargos) custa ~R$ 3.000–5.000/mês p
 - Opção de fallback: configurar OpenAI ou Anthropic como provedor alternativo (troca apenas a variável de ambiente)
 
 ### 6. Escalabilidade do Banco de Dados
-**Problema:** SQLite não suporta alto volume de escrita concorrente.
+**Problema:** O uso padrão de SQLite pode se tornar um gargalo de escrita caso o volume de leads cresça vertiginosamente de um mês para o outro.
 
 **Mitigação:**
-- Para até ~5.000 leads ativos, SQLite é suficiente
-- Acima disso: migrar para PostgreSQL (mudança de `DATABASE_URL` no `.env`, sem alteração de código graças ao SQLAlchemy)
+- O SQLite suporta perfeitamente e com alta performance a fase inicial (até ~5.000 leads ativos mensais).
+- Se houver necessidade de escalar, o custo de infra é zero: o projeto já sobe um container do PostgreSQL nativamente (usado pela Evolution API). Basta alterar a variável `DATABASE_URL` no `.env` para o backend aproveitar esse mesmo banco de dados super robusto.
 
 ---
 

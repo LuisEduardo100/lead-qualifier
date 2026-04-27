@@ -2,12 +2,16 @@
 
 ## A Dor Real
 
-Equipes comerciais de pequenas e médias empresas perdem entre **30% e 60% dos leads** gerados por anúncios simplesmente por demora no primeiro contato. O WhatsApp é o canal principal de vendas no Brasil, mas o atendimento depende de vendedores disponíveis — que têm horário limitado, respondem com atraso e fazem perguntas de qualificação de forma inconsistente.
+A demora no primeiro contato está matando as taxas de conversão. Um estudo amplamente citado pela **Harvard Business Review** (baseado em dados do MIT e InsideSales) estabeleceu a "Regra dos 5 Minutos": as chances de conseguir qualificar um lead caem **21 vezes** se a empresa demorar 30 minutos para responder em vez de 5 minutos. Além disso, cerca de **78% dos clientes** fecham negócio com a primeira empresa que os atende.
+
+No Brasil, a urgência é ainda maior. Segundo o relatório panorama mensageria da **Mobile Time/Opinion Box**, o WhatsApp está presente em **99% dos smartphones**, e o consumidor exige respostas em tempo real nesse canal. 
+
+No entanto, o atendimento humano gera gargalos: depende de vendedores que têm horário comercial limitado, demoram a responder quando há pico de demanda e fazem perguntas de qualificação de forma inconsistente.
 
 O resultado prático:
-- Lead chega às 21h por um anúncio, ninguém responde até o dia seguinte. Ele já comprou do concorrente.
-- Vendedor gasta 80% do tempo em leads frios que nunca vão comprar.
-- Não há rastreabilidade — os dados ficam no celular do vendedor, não no sistema.
+- Lead chega às 21h por um anúncio, ninguém responde até o dia seguinte. A intenção de compra despenca e ele já foi atendido pela concorrência.
+- Vendedores (SDRs e Closers) desperdiçam a maior parte do dia respondendo as mesmas dúvidas básicas para leads curiosos que nunca vão comprar.
+- Não há rastreabilidade — o histórico das conversas e os dados dos clientes ficam "sequestrados" no celular do vendedor, sem ir para o CRM.
 
 ---
 
