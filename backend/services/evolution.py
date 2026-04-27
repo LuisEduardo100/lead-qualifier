@@ -86,7 +86,7 @@ async def send_text(instance_name: str, phone: str, text: str) -> dict:
     else:
         number = phone.replace("+", "").replace(" ", "").replace("-", "")
     logger.info(f"send_text → instance={instance_name} number={number}")
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(f"{BASE}/message/sendText/{instance_name}", headers=HEADERS,
                               json={"number": number, "text": text})
         if not r.is_success:
@@ -99,7 +99,7 @@ async def _send_typing(instance_name: str, number: str):
     import logging
     logger = logging.getLogger(__name__)
     try:
-        async with httpx.AsyncClient(timeout=5) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             await client.post(
                 f"{BASE}/chat/updatePresence/{instance_name}",
                 headers=HEADERS,

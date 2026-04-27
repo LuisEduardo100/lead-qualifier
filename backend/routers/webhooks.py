@@ -224,7 +224,7 @@ async def receive_webhook(
     # Audio received but could not be transcribed — ask user to type
     if not text and media_type == "audio":
         background_tasks.add_task(
-            send_text_human, instance_name, reply_jid,
+            send_text_human, instance_name, phone,
             "Não consegui ouvir o áudio. Pode digitar sua mensagem?"
         )
         return {"ok": True}
@@ -327,13 +327,13 @@ async def receive_webhook(
 
         db.add(Message(lead_id=lead.id, direction=MessageDirection.outbound, content=reply))
         await db.commit()
-        background_tasks.add_task(send_text_human, instance_name, reply_jid, reply)
+        background_tasks.add_task(send_text_human, instance_name, phone, reply)
 
         if send_catalog and active_doc:
             background_tasks.add_task(
                 _send_catalog_task,
                 instance_name,
-                reply_jid,
+                phone,
                 lead.id,
                 active_doc.file_path,
                 active_doc.filename,
