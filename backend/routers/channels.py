@@ -16,7 +16,9 @@ settings = get_settings()
 
 
 def _webhook_url(instance_name: str) -> str:
-    return f"{settings.public_url}/webhook/{instance_name}"
+    # Evolution lives on the internal docker network (no internet egress),
+    # so the webhook target must resolve via docker DNS, not the public domain.
+    return f"{settings.internal_api_url}/webhook/{instance_name}"
 
 
 class ChannelCreate(BaseModel):
@@ -147,7 +149,8 @@ async def get_qrcode(channel_id: int, db: AsyncSession = Depends(get_db), _=Depe
         raise HTTPException(400, "Canais WA Business nao usam QR Code")
     qr_store.clear_qr(channel.instance_name)
     await evolution.trigger_connect(channel.instance_name)
-    b64 = await qr_store.wait_for_qr(channel.instance_name, timeout=20)
+    # Evolution refreshes QRs every ~45s; allow enough head-room for a new one.
+    b64 = await qr_store.wait_for_qr(channel.instance_name, timeout=50)
     if not b64:
         raise HTTPException(408, "QR Code nao disponivel")
     return {"base64": b64}

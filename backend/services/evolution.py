@@ -9,7 +9,7 @@ BASE = settings.evolution_api_url
 
 
 async def create_instance(instance_name: str, webhook_url: str) -> dict:
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=20) as client:
         r = await client.post(f"{BASE}/instance/create", headers=HEADERS, json={
             "instanceName": instance_name,
             "integration": "WHATSAPP-BAILEYS",
@@ -27,7 +27,7 @@ async def create_business_instance(
     number: str,
     business_id: str,
 ) -> dict:
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=20) as client:
         r = await client.post(f"{BASE}/instance/create", headers=HEADERS, json={
             "instanceName": instance_name,
             "integration": "WHATSAPP-BUSINESS",
@@ -46,7 +46,7 @@ async def create_business_instance(
 
 
 async def trigger_connect(instance_name: str):
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=20) as client:
         await client.get(f"{BASE}/instance/connect/{instance_name}", headers=HEADERS)
 
 
@@ -186,7 +186,7 @@ async def logout_instance(instance_name: str):
 
 
 async def delete_instance(instance_name: str):
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=15) as client:
         await client.delete(f"{BASE}/instance/delete/{instance_name}", headers=HEADERS)
 
 
