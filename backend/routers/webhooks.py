@@ -9,7 +9,7 @@ from datetime import datetime, UTC
 from backend.database import get_db, SessionLocal
 from backend.models import Channel, Lead, Message, AgentConfig, LeadStatus, MessageDirection
 from backend.agents import qualification as qa, response as ra
-from backend.services.evolution import send_text_human, download_media_base64, send_document
+from backend.services.evolution import send_text_human, download_media_base64, send_document, resolve_lid_jid
 from backend.services.rag import search_relevant_chunks, get_active_document
 from backend import qr_store
 from backend.config import get_settings
@@ -208,9 +208,22 @@ async def receive_webhook(
 
     push_name = data.get("pushName")
     remote_jid_alt = key.get("remoteJidAlt", "")
-    if remote_jid.endswith("@lid") and remote_jid_alt:
-        reply_jid = remote_jid_alt
-        phone = remote_jid_alt.split("@")[0]
+    if remote_jid.endswith("@lid"):
+        if remote_jid_alt and not remote_jid_alt.endswith("@lid"):
+            reply_jid = remote_jid_alt
+        elif push_name:
+            resolved = await resolve_lid_jid(instance_name, push_name)
+            if resolved and not resolved.endswith("@lid"):
+                reply_jid = resolved
+            else:
+                logger.warning(
+                    f"Could not resolve @lid jid={remote_jid} pushName={push_name!r}; skipping reply"
+                )
+                return {"ok": True}
+        else:
+            logger.warning(f"@lid jid without remoteJidAlt and without pushName: {remote_jid}")
+            return {"ok": True}
+        phone = reply_jid.split("@")[0]
     else:
         reply_jid = remote_jid
         phone = remote_jid.split("@")[0]
