@@ -28,6 +28,15 @@
     </div>
   </div>
 
+  <div id="new-leads-banner" class="hidden mb-6 rounded-xl border border-gray-200 bg-white p-4">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="w-2 h-2 rounded-full bg-gray-400"></span>
+      <h2 class="text-sm font-semibold text-gray-700">Aguardando qualificação</h2>
+      <span id="count-new" class="text-xs text-gray-400 font-medium">0</span>
+    </div>
+    <div id="col-new" class="grid grid-cols-1 md:grid-cols-3 gap-3"></div>
+  </div>
+
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
     <div>
       <div class="flex items-center gap-2 mb-3">
@@ -89,22 +98,28 @@ async function load() {
 }
 
 function render(f) {
+  const newOnes = allLeads.filter(l => l.status === 'new');
   const hot = allLeads.filter(l => l.status === 'hot');
   const warm = allLeads.filter(l => l.status === 'warm');
   const cold = allLeads.filter(l => l.status === 'cold');
+  document.getElementById('count-new').textContent = newOnes.length;
   document.getElementById('count-hot').textContent = hot.length;
   document.getElementById('count-warm').textContent = warm.length;
   document.getElementById('count-cold').textContent = cold.length;
 
-  const board = document.querySelector('.grid');
+  const newBanner = document.getElementById('new-leads-banner');
+  const board = document.querySelectorAll('.grid')[1];
   const flat = document.getElementById('flat-list');
 
   if (f === 'all') {
+    newBanner.classList.toggle('hidden', newOnes.length === 0);
+    document.getElementById('col-new').innerHTML = newOnes.map(leadCard).join('');
     board.classList.remove('hidden'); flat.classList.add('hidden');
     document.getElementById('col-hot').innerHTML = hot.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
     document.getElementById('col-warm').innerHTML = warm.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
     document.getElementById('col-cold').innerHTML = cold.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
   } else {
+    newBanner.classList.add('hidden');
     board.classList.add('hidden'); flat.classList.remove('hidden');
     flat.innerHTML = allLeads.filter(l => l.status === f).map(leadCard).join('') || '<p class="text-gray-400 text-center py-8">Nenhum lead encontrado</p>';
   }
