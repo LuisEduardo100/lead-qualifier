@@ -257,14 +257,19 @@ async def receive_webhook(
             legacy_lead.phone = phone
             lead = legacy_lead
 
+    # When the consultor types from their phone (fromMe=true), pushName is
+    # the consultor's own WhatsApp name — not the lead's. Don't use it as
+    # the lead's name.
+    lead_name = None if is_from_me else push_name
+
     if not lead:
-        lead = Lead(channel_id=channel.id, phone=phone, name=push_name)
+        lead = Lead(channel_id=channel.id, phone=phone, name=lead_name)
         db.add(lead)
         await db.flush()
 
     lead.last_message_at = datetime.now(UTC)
-    if push_name and not lead.name:
-        lead.name = push_name
+    if lead_name and not lead.name:
+        lead.name = lead_name
 
     direction = MessageDirection.outbound if is_from_me else MessageDirection.inbound
 
