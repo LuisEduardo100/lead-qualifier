@@ -6,4 +6,4 @@ RUN uv run python -c "from fastembed import TextEmbedding; TextEmbedding(model_n
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 COPY mcp_server.py ./
-CMD ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
