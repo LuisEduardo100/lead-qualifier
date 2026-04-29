@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 settings = get_settings()
 
-MAX_HISTORY = 20
+MAX_HISTORY = 10
 
 
 def _cfg(configs, key, default=""):
@@ -342,12 +342,15 @@ async def receive_webhook(
     brevity_rule = _cfg(configs, "brevity_rule", "")
 
     active_doc = await get_active_document(db)
-    catalog_chunks = await search_relevant_chunks(text, db) if active_doc else []
     catalog_already_sent = any(
         m.content == "[CATÁLOGO_ENVIADO]" for m in messages_rows
     )
     _CATALOG_KEYWORDS = {"catálogo", "catalogo", "pdf", "folheto", "material", "tabela", "lista de preço", "lista de precos"}
     user_asked_catalog = any(kw in text.lower() for kw in _CATALOG_KEYWORDS)
+    # Only attach catalog chunks to system prompt when the user asked about
+    # them. RAG chunks can add 1-3k tokens per call — keep them off the
+    # default path to avoid burning the daily Groq token budget.
+    catalog_chunks = await search_relevant_chunks(text, db) if (active_doc and user_asked_catalog) else []
 
     try:
         qual = await qa.qualify(history, business_context, criteria)
