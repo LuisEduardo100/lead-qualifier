@@ -241,6 +241,22 @@ async def receive_webhook(
         select(Lead).where(Lead.phone == phone, Lead.channel_id == channel.id)
     )).scalar_one_or_none()
 
+    # Backfill: leads created on Evolution v2.2.3 were saved with the @lid id
+    # as phone. Now that v2.3.7 delivers remoteJidAlt with the real number,
+    # migrate the lead's phone to the real one (matched by pushName).
+    if not lead and remote_jid.endswith("@lid") and can_reply and push_name:
+        lid_phone = remote_jid.split("@")[0]
+        legacy_lead = (await db.execute(
+            select(Lead).where(
+                Lead.phone == lid_phone,
+                Lead.channel_id == channel.id,
+                Lead.name == push_name,
+            )
+        )).scalar_one_or_none()
+        if legacy_lead:
+            legacy_lead.phone = phone
+            lead = legacy_lead
+
     if not lead:
         lead = Lead(channel_id=channel.id, phone=phone, name=push_name)
         db.add(lead)
