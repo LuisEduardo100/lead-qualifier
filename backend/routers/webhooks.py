@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Request, Depends, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 from backend.database import get_db, SessionLocal
 from backend.models import Channel, Lead, Message, AgentConfig, LeadStatus, MessageDirection
 from backend.agents import qualification as qa, response as ra
@@ -199,15 +199,19 @@ async def receive_webhook(
     data = payload.get("data", {})
     key = data.get("key", {})
 
-    if key.get("fromMe"):
-        return {"ok": True}
-
     remote_jid = key.get("remoteJid", "")
     if remote_jid.endswith("@g.us"):
         return {"ok": True}
 
+    is_from_me = bool(key.get("fromMe"))
     push_name = data.get("pushName")
     remote_jid_alt = key.get("remoteJidAlt", "")
+
+    # Pick a phone identifier for the conversation. For @lid we prefer
+    # remoteJidAlt (real number) when available, then a resolved contact, else
+    # fall back to the @lid id itself so the conversation is still tracked
+    # (replies may still fail until Baileys resolves it).
+    reply_jid = remote_jid
     if remote_jid.endswith("@lid"):
         if remote_jid_alt and not remote_jid_alt.endswith("@lid"):
             reply_jid = remote_jid_alt
@@ -215,31 +219,14 @@ async def receive_webhook(
             resolved = await resolve_lid_jid(instance_name, push_name)
             if resolved and not resolved.endswith("@lid"):
                 reply_jid = resolved
-            else:
-                logger.warning(
-                    f"Could not resolve @lid jid={remote_jid} pushName={push_name!r}; skipping reply"
-                )
-                return {"ok": True}
-        else:
-            logger.warning(f"@lid jid without remoteJidAlt and without pushName: {remote_jid}")
-            return {"ok": True}
-        phone = reply_jid.split("@")[0]
-    else:
-        reply_jid = remote_jid
-        phone = remote_jid.split("@")[0]
+    phone = reply_jid.split("@")[0]
+    can_reply = not reply_jid.endswith("@lid")
 
     message_obj = data.get("message", {})
     text, media_type, media_url = await _extract_message(message_obj, instance_name, key)
 
-    if not text and media_type != "audio":
-        return {"ok": True}
-
-    # Audio received but could not be transcribed — ask user to type
-    if not text and media_type == "audio":
-        background_tasks.add_task(
-            send_text_human, instance_name, phone,
-            "Não consegui ouvir o áudio. Pode digitar sua mensagem?"
-        )
+    # Sticker / reaction / unsupported with no extracted text — still ack
+    if not text and media_type is None:
         return {"ok": True}
 
     channel = (await db.execute(
@@ -263,16 +250,56 @@ async def receive_webhook(
     if push_name and not lead.name:
         lead.name = push_name
 
+    direction = MessageDirection.outbound if is_from_me else MessageDirection.inbound
+
+    if is_from_me:
+        # Anti-echo: skip if we already saved an outbound message with same
+        # content for this lead in the last 60s (likely echo of agent send).
+        recent_dup = (await db.execute(
+            select(Message)
+            .where(
+                Message.lead_id == lead.id,
+                Message.direction == MessageDirection.outbound,
+                Message.content == (text or ""),
+                Message.created_at >= datetime.now(UTC).replace(tzinfo=None) - timedelta(seconds=60),
+            )
+            .limit(1)
+        )).scalar_one_or_none()
+        if recent_dup is not None:
+            await db.commit()
+            return {"ok": True}
+
     db.add(Message(
         lead_id=lead.id,
-        direction=MessageDirection.inbound,
+        direction=direction,
         content=text,
         media_type=media_type,
         media_url=media_url,
     ))
     await db.commit()
 
-    if lead.agent_paused:
+    # Only the agent reacts to inbound from the lead. fromMe (consultor typing
+    # on phone) and paused leads do not trigger LLM/qualification.
+    if is_from_me or lead.agent_paused:
+        return {"ok": True}
+
+    # Audio received but could not be transcribed — ask user to type (only when
+    # we have a resolvable reply target).
+    if not text and media_type == "audio":
+        if can_reply:
+            background_tasks.add_task(
+                send_text_human, instance_name, phone,
+                "Não consegui ouvir o áudio. Pode digitar sua mensagem?"
+            )
+        return {"ok": True}
+
+    if not text:
+        return {"ok": True}
+
+    if not can_reply:
+        logger.warning(
+            f"Inbound saved but reply skipped — unresolved @lid jid={remote_jid} pushName={push_name!r}"
+        )
         return {"ok": True}
 
     messages_rows = (await db.execute(

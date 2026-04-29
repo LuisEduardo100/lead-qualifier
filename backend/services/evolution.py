@@ -60,21 +60,33 @@ async def get_connection_state(instance_name: str) -> str:
 
 
 async def resolve_lid_jid(instance_name: str, push_name: str) -> str | None:
+    """Try to find a non-@lid JID for a contact whose latest webhook came as @lid.
+
+    Evolution v2.2.3 endpoint: POST /chat/findContacts/{instance} with body
+    {"where": {...}}. We filter by pushName client-side and prefer remoteJids
+    that don't end in @lid (i.e., @s.whatsapp.net). Returns None if nothing
+    resolvable is found.
+    """
     import logging
     logger = logging.getLogger(__name__)
-    async with httpx.AsyncClient() as client:
-        r = await client.get(
-            f"{BASE}/contact/findContacts/{instance_name}",
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.post(
+            f"{BASE}/chat/findContacts/{instance_name}",
             headers=HEADERS,
-            params={"query": push_name},
+            json={"where": {}},
         )
         if r.status_code != 200:
-            logger.warning(f"findContacts {r.status_code}: {r.text}")
+            logger.warning(f"findContacts {r.status_code}: {r.text[:300]}")
             return None
         contacts = r.json()
-        logger.info(f"findContacts result: {contacts}")
-        if isinstance(contacts, list) and contacts:
-            return contacts[0].get("id")
+        if not isinstance(contacts, list):
+            return None
+        target = (push_name or "").strip().lower()
+        for c in contacts:
+            if (c.get("pushName") or "").strip().lower() == target:
+                jid = c.get("remoteJid", "")
+                if jid and not jid.endswith("@lid"):
+                    return jid
         return None
 
 

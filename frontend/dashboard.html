@@ -22,13 +22,22 @@
     <h1 class="text-2xl font-bold text-gray-900">Pipeline de Leads</h1>
     <div class="flex gap-2">
       <button onclick="filter('all')" id="btn-all" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 text-white">Todos</button>
+      <button onclick="filter('new')" id="btn-new" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">Novos</button>
       <button onclick="filter('hot')" id="btn-hot" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">Quentes</button>
       <button onclick="filter('warm')" id="btn-warm" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">Mornos</button>
       <button onclick="filter('cold')" id="btn-cold" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">Frios</button>
     </div>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-3 h-3 rounded-full bg-gray-300"></span>
+        <h2 class="font-semibold text-gray-700">Novos</h2>
+        <span id="count-new" class="ml-auto text-xs text-gray-400 font-medium">0</span>
+      </div>
+      <div id="col-new" class="space-y-3"></div>
+    </div>
     <div>
       <div class="flex items-center gap-2 mb-3">
         <span class="w-3 h-3 rounded-full bg-red-400"></span>
@@ -89,9 +98,11 @@ async function load() {
 }
 
 function render(f) {
+  const newOnes = allLeads.filter(l => l.status === 'new');
   const hot = allLeads.filter(l => l.status === 'hot');
   const warm = allLeads.filter(l => l.status === 'warm');
   const cold = allLeads.filter(l => l.status === 'cold');
+  document.getElementById('count-new').textContent = newOnes.length;
   document.getElementById('count-hot').textContent = hot.length;
   document.getElementById('count-warm').textContent = warm.length;
   document.getElementById('count-cold').textContent = cold.length;
@@ -101,6 +112,7 @@ function render(f) {
 
   if (f === 'all') {
     board.classList.remove('hidden'); flat.classList.add('hidden');
+    document.getElementById('col-new').innerHTML = newOnes.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
     document.getElementById('col-hot').innerHTML = hot.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
     document.getElementById('col-warm').innerHTML = warm.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
     document.getElementById('col-cold').innerHTML = cold.map(leadCard).join('') || '<p class="text-xs text-gray-400 text-center py-4">Nenhum</p>';
@@ -120,7 +132,7 @@ function filter(f) {
 }
 
 load();
-setInterval(load, 30000);
+setInterval(load, 5000);
 </script>
 </body>
 </html>
