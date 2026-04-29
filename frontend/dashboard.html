@@ -121,6 +121,8 @@ function filter(f) {
 
 load();
 setInterval(load, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+window.addEventListener('focus', load);
 </script>
 </body>
 </html>

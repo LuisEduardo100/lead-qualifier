@@ -163,6 +163,8 @@ async function updateStatus() {
 
 load();
 setInterval(load, 3000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+window.addEventListener('focus', load);
 </script>
 </body>
 </html>
