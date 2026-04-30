@@ -107,15 +107,15 @@ async def send_text(instance_name: str, phone: str, text: str) -> dict:
         return r.json()
 
 
-async def _send_typing(instance_name: str, number: str):
+async def _send_typing(instance_name: str, number: str, delay_ms: int = 1200):
     import logging
     logger = logging.getLogger(__name__)
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             await client.post(
-                f"{BASE}/chat/updatePresence/{instance_name}",
+                f"{BASE}/chat/sendPresence/{instance_name}",
                 headers=HEADERS,
-                json={"number": number, "presence": "composing"},
+                json={"number": number, "presence": "composing", "delay": delay_ms},
             )
     except Exception as e:
         logger.warning(f"send_typing failed: {e}")

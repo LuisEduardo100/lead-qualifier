@@ -45,6 +45,12 @@ async def generate_response(
     elif lead_status == "cold":
         instruction = "\n\nFora do nicho. Encerre com cordialidade."
 
+    instruction += (
+        "\n\nFormato da resposta: comece DIRETO com a primeira palavra. "
+        "NUNCA inicie com vírgula, ponto ou outra pontuação. "
+        "Não comece com o nome do lead seguido de vírgula."
+    )
+
     messages = [
         {"role": "system", "content": system + instruction},
         *history,
@@ -63,6 +69,6 @@ async def generate_response(
     choice = response.choices[0]
     raw = choice.message.content or ""
     finish = choice.finish_reason
-    reply = raw.strip()
+    reply = raw.strip().lstrip(",;:.!?- \n\t").strip()
     logger.info(f"[generate_response] finish_reason={finish!r} raw={raw!r} reply={reply!r}")
     return reply

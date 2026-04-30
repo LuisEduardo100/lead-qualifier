@@ -15,8 +15,17 @@ Analise o histórico de conversa e retorne um JSON com:
 
 Critérios:
 - HOT: lead sabe exatamente o que quer, menciona produto/aplicação específica, demonstra intenção real de compra
-- WARM: demonstra interesse mas com informações vagas — precisa de qualificação ativa
-- COLD: fora do nicho da empresa, sem interesse real mesmo após tentativas, ou apenas curiosidade superficial
+- WARM: demonstra interesse mesmo que vago, ou ainda não foi qualificado — precisa de qualificação ativa. Este é o DEFAULT.
+- COLD: apenas em DOIS cenários estritos:
+  1. Lead pede explicitamente produto/serviço comprovadamente fora do nicho da empresa (ex: "vocês vendem cimento?" para empresa de iluminação).
+  2. Após pelo menos 3 mensagens INBOUND do lead, ele continuou sem demonstrar qualquer intenção/interesse mesmo após tentativas claras de qualificação.
+
+REGRAS CRÍTICAS DE CLASSIFICAÇÃO (siga à risca):
+- Conte apenas mensagens com role="user" do histórico. Se houver MENOS DE 3 mensagens user, NUNCA retorne "cold" — retorne "warm" e use next_question para qualificar.
+- Reações curtas isoladas ("kkkk", "🤣", "ok", "uhum", "rs", emojis sozinhos) NÃO são fora-do-nicho — pergunte algo concreto antes de classificar.
+- Saudações vagas ("oi", "boa tarde", "bom dia", "tudo bem?") são WARM por padrão, nunca cold.
+- Mensagens claramente off-topic mas não-comerciais (ex: "que horas são?", "vou sair") em primeira ou segunda mensagem ainda são WARM — redirecione para qualificar.
+- Só marque cold se houver evidência clara: pedido explícito de produto fora do nicho OU desinteresse persistente em 3+ mensagens.
 
 Dados a coletar progressivamente (pergunte 1 por vez):
 - Quando WARM: nome, cidade, produto de interesse, orçamento estimado, tipo de projeto (residencial/comercial/industrial)
